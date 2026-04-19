@@ -30,6 +30,22 @@ GESTURE_APP = os.path.join(BUNDLE_RES, "gesture_app.py")
 NOTIFIER    = "/opt/homebrew/bin/terminal-notifier"
 
 
+def request_camera_permission() -> bool:
+    """
+    Trigger the macOS TCC camera permission dialog by briefly opening the camera.
+    Must be called from the .app bundle (has NSCameraUsageDescription plist key).
+    Returns True if camera appears accessible.
+    """
+    try:
+        import cv2
+        cap = cv2.VideoCapture(0)
+        opened = cap.isOpened()
+        cap.release()
+        return opened
+    except Exception:
+        return True  # can't check — proceed anyway
+
+
 def notify(title: str, message: str = ""):
     try:
         if os.path.exists(NOTIFIER):
@@ -57,9 +73,26 @@ def is_agent_loaded() -> bool:
 
 
 def install_agent():
+    # The raw python binary inside the bundle uses the system Homebrew Python
+    # paths, not the bundled libs. We fix this by prepending the bundle's
+    # lib paths before running gesture_app.py.
+    py_ver = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    bundle_lib     = os.path.join(BUNDLE_RES, "lib", py_ver)
+    bundle_dynload = os.path.join(bundle_lib, "lib-dynload")
+    bundle_zip     = os.path.join(BUNDLE_RES, "lib", f"python{sys.version_info.major}{sys.version_info.minor}.zip")
+
+    # Inline bootstrap: fix sys.path then exec gesture_app.
+    # sys.argv is set explicitly so gesture_app sees --always-active.
+    bootstrap = (
+        f"import sys; "
+        f"sys.argv = ['{GESTURE_APP}', '--always-active']; "
+        f"sys.path[:0] = ['{BUNDLE_RES}', '{bundle_lib}', '{bundle_dynload}', '{bundle_zip}']; "
+        f"import runpy; runpy.run_path('{GESTURE_APP}', run_name='__main__')"
+    )
+
     plist = {
         "Label": BUNDLE_ID,
-        "ProgramArguments": [PYTHON_BIN, GESTURE_APP, "--always-active"],
+        "ProgramArguments": [PYTHON_BIN, "-c", bootstrap],
         "WorkingDirectory": BUNDLE_RES,
         "RunAtLoad": True,
         "KeepAlive": {"SuccessfulExit": False},
@@ -81,7 +114,14 @@ def main():
         notify("Already running", "Waiv is active in the background.")
         return
 
-    notify("Starting up…", "Installing Waiv gesture control.")
+    # Request camera permission now (from the visible .app bundle context)
+    # so that the background LaunchAgent inherits the grant.
+    notify("Starting up…", "Grant camera access when prompted.")
+    camera_ok = request_camera_permission()
+    if not camera_ok:
+        notify("Camera permission needed",
+               "Open System Settings → Privacy → Camera and allow Waiv.")
+
     install_agent()
 
     import time

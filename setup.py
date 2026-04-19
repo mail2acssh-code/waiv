@@ -11,7 +11,7 @@ import glob
 from setuptools import setup
 
 APP     = ["launcher.py"]
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 DATA_FILES = [
     ("", [
@@ -29,7 +29,7 @@ DATA_FILES = [
 ]
 
 OPTIONS = {
-    "iconfile": None,
+    "iconfile": "docs/waiv.icns",
     "plist": {
         "CFBundleName":               "Waiv",
         "CFBundleDisplayName":        "Waiv",
@@ -50,7 +50,7 @@ OPTIONS = {
         "mediapipe",
         "cv2",
         "numpy",
-        "matplotlib",
+        "setproctitle",
     ],
     "includes": [
         "gesture_classifier",

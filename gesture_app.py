@@ -209,6 +209,12 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
 # ---------------------------------------------------------------------------
 
 def run():
+    try:
+        import setproctitle
+        setproctitle.setproctitle("waiv")
+    except ImportError:
+        pass
+
     log.info("Waiv Gesture Control starting…")
 
     hud        = WaivHUD()
@@ -224,7 +230,7 @@ def run():
 
     # First-run: show gesture guide automatically after app settles
     if not is_onboarded():
-        AppHelper.callAfter(1.0, onboarding.show)
+        AppHelper.callLater(1.0, onboarding.show)
 
     app.run()
 

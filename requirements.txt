@@ -3,3 +3,4 @@ opencv-python>=4.8
 rumps>=0.4
 pyobjc-framework-Cocoa>=10.0
 numpy>=1.24
+setproctitle>=1.3

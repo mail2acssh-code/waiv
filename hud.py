@@ -174,7 +174,7 @@ class WaivHUD:
         self._window.animator().setAlphaValue_(1.0)
         NSAnimationContext.endGrouping()
 
-        AppHelper.callAfter(1.8, lambda: self._begin_dismiss(gen))
+        AppHelper.callLater(1.8, lambda: self._begin_dismiss(gen))
 
     def _begin_dismiss(self, gen):
         if gen != self._dismiss_gen or self._window is None:
@@ -183,7 +183,7 @@ class WaivHUD:
         NSAnimationContext.currentContext().setDuration_(0.25)
         self._window.animator().setAlphaValue_(0.0)
         NSAnimationContext.endGrouping()
-        AppHelper.callAfter(0.26, self._hide)
+        AppHelper.callLater(0.26, self._hide)
 
     def _hide(self):
         if self._window:

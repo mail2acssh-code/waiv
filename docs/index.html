@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,67 +9,36 @@
   <meta property="og:title"       content="Waiv — Gesture Control for Mac" />
   <meta property="og:description" content="Control your Mac with hand gestures. Free, open source, runs entirely on-device." />
   <meta property="og:url"         content="https://mail2acssh-code.github.io/waiv" />
-  <meta name="twitter:card"        content="summary_large_image" />
-  <meta name="twitter:title"       content="Waiv — Gesture Control for Mac" />
-  <meta name="twitter:description" content="Control your Mac with hand gestures. Free &amp; open source." />
+  <meta name="twitter:card"       content="summary_large_image" />
 
   <style>
-    /* ════════════════════════════════════════
-       TOKENS — light (default)
-    ════════════════════════════════════════ */
     :root {
-      --bg:         #ffffff;
-      --surface:    #f5f5f7;
-      --card:       #ffffff;
-      --border:     rgba(0,0,0,0.08);
-      --accent:     #6655e8;
-      --accent-h:   #7b6cf0;
-      --text:       #1d1d1f;
-      --muted:      #86868b;
-      --r:          14px;
-
-      /* orbs */
-      --orb1: rgba(120, 100, 240, 0.55);
-      --orb2: rgba(80,  140, 250, 0.50);
-      --orb3: rgba(200, 100, 240, 0.45);
-      --orb4: rgba( 52, 210, 180, 0.40);
-
-      /* glass */
-      --glass-bg:     rgba(255,255,255,0.55);
-      --glass-border: rgba(255,255,255,0.75);
-      --glass-shadow: rgba(0,0,0,0.10);
-
+      --bg:        #ffffff;
+      --surface:   #f5f5f5;
+      --card:      #ffffff;
+      --border:    rgba(0,0,0,0.1);
+      --text:      #000000;
+      --text2:     #666666;
+      --text3:     #999999;
+      --accent:    #000000;
+      --accent-fg: #ffffff;
+      --r:         8px;
+      --cam-bg:    #080808;
     }
-
-    /* ════════════════════════════════════════
-       TOKENS — dark
-    ════════════════════════════════════════ */
     [data-theme="dark"] {
-      --bg:         #08080f;
-      --surface:    #10101a;
-      --card:       #13131e;
-      --border:     rgba(255,255,255,0.07);
-      --accent:     #7b6cf0;
-      --accent-h:   #9d8fff;
-      --text:       #ededf5;
-      --muted:      #72728a;
-
-      --orb1: rgba(140, 110, 255, 0.65);
-      --orb2: rgba( 80, 140, 255, 0.60);
-      --orb3: rgba(210, 100, 255, 0.55);
-      --orb4: rgba( 40, 220, 190, 0.45);
-
-      --glass-bg:     rgba(10,10,22,0.55);
-      --glass-border: rgba(255,255,255,0.10);
-      --glass-shadow: rgba(0,0,0,0.40);
+      --bg:        #000000;
+      --surface:   #111111;
+      --card:      #161616;
+      --border:    rgba(255,255,255,0.1);
+      --text:      #ffffff;
+      --text2:     #999999;
+      --text3:     #555555;
+      --accent:    #ffffff;
+      --accent-fg: #000000;
     }
 
-    /* ════════════════════════════════════════
-       BASE
-    ════════════════════════════════════════ */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
-
     body {
       background: var(--bg);
       color: var(--text);
@@ -77,709 +46,931 @@
       -webkit-font-smoothing: antialiased;
       line-height: 1.6;
       overflow-x: hidden;
-      transition: background 0.35s, color 0.35s;
+      transition: background .25s, color .25s;
     }
+    a { color: inherit; text-decoration: none; }
 
-    a { color: var(--accent); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-
-    /* ════════════════════════════════════════
-       NAV
-    ════════════════════════════════════════ */
+    /* ── NAV ── */
     nav {
-      position: sticky; top: 0; z-index: 300;
+      position: sticky; top: 0; z-index: 200;
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 48px; height: 60px;
-      background: var(--glass-bg);
-      backdrop-filter: blur(28px) saturate(180%);
-      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      padding: 0 48px; height: 54px;
+      background: var(--bg);
       border-bottom: 1px solid var(--border);
-      transition: background 0.35s, border-color 0.35s;
+      transition: background .25s, border-color .25s;
     }
     .nav-brand {
-      display: flex; align-items: center; gap: 9px;
-      font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em;
-      color: var(--text); transition: color 0.35s;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em;
+      color: var(--text);
     }
-    .nav-brand .hand { font-size: 1.25rem; }
-    .nav-right { display: flex; align-items: center; gap: 6px; }
-    .nav-links { display: flex; align-items: center; gap: 2px; }
-    .nav-links a {
-      color: var(--muted); font-size: 0.9rem; padding: 6px 12px;
-      border-radius: 8px; transition: color .15s, background .15s;
+    .nav-logo { width: 22px; height: 22px; flex-shrink: 0; }
+    .nav-logo path { fill: var(--text); transition: fill .25s; }
+    .nav-right { display: flex; align-items: center; gap: 2px; }
+    .nav-link {
+      font-size: 0.85rem; color: var(--text2); padding: 5px 10px;
+      border-radius: 6px; transition: color .15s, background .15s;
     }
-    .nav-links a:hover { color: var(--text); background: rgba(128,128,128,0.1); text-decoration: none; }
-
-    /* GitHub button */
-    .btn-nav {
-      display: flex; align-items: center; gap: 7px;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 8px; padding: 6px 14px;
-      color: var(--text) !important; font-size: 0.88rem;
-      transition: border-color .2s, background .2s;
-      margin-left: 6px;
+    .nav-link:hover { color: var(--text); background: var(--surface); }
+    .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 6px; }
+    .btn-nav-gh {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.85rem; color: var(--text2); padding: 5px 10px;
+      border-radius: 6px; transition: color .15s, background .15s;
     }
-    .btn-nav:hover { border-color: var(--accent); text-decoration: none !important; }
-
-    /* Theme toggle */
+    .btn-nav-gh:hover { color: var(--text); background: var(--surface); }
     .theme-btn {
-      width: 36px; height: 36px; border-radius: 8px;
-      border: 1px solid var(--border); background: var(--surface);
-      cursor: pointer; color: var(--muted);
+      width: 30px; height: 30px; border-radius: 6px;
+      border: 1px solid var(--border); background: transparent;
+      cursor: pointer; color: var(--text2);
       display: flex; align-items: center; justify-content: center;
-      transition: border-color .2s, background .2s, color .2s;
-      flex-shrink: 0; margin-left: 4px;
+      transition: border-color .2s, color .2s;
+      margin-left: 4px;
     }
-    .theme-btn:hover { border-color: var(--accent); color: var(--text); }
-    /* show sun in dark, moon in light */
+    .theme-btn:hover { border-color: var(--text); color: var(--text); }
     .t-moon { display: block; }
-    .t-sun  { display: none;  }
-    [data-theme="dark"] .t-moon { display: none;  }
+    .t-sun  { display: none; }
+    [data-theme="dark"] .t-moon { display: none; }
     [data-theme="dark"] .t-sun  { display: block; }
 
-    /* ════════════════════════════════════════
-       HERO
-    ════════════════════════════════════════ */
+    /* ── HERO ── */
     .hero {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 88px 48px 96px;
+    }
+    .hero-text h1 {
+      font-size: clamp(2.6rem, 4.8vw, 3.8rem);
+      font-weight: 800; letter-spacing: -0.05em; line-height: 1.08;
+      margin-bottom: 22px; color: var(--text);
+    }
+    .hero-text p {
+      font-size: 1.05rem; color: var(--text2); line-height: 1.75;
+      margin-bottom: 36px; max-width: 380px;
+    }
+    .hero-ctas { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 36px; }
+    .btn-dl {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--text); color: var(--bg);
+      padding: 11px 22px; border-radius: var(--r);
+      font-size: 0.9rem; font-weight: 600;
+      transition: opacity .2s, transform .15s;
+      border: 1px solid var(--text);
+    }
+    .btn-dl:hover { opacity: 0.85; transform: translateY(-1px); }
+    .btn-gh {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text2); padding: 11px 22px; border-radius: var(--r);
+      font-size: 0.9rem; font-weight: 500;
+      transition: border-color .2s, color .2s, transform .15s;
+    }
+    .btn-gh:hover { border-color: var(--text); color: var(--text); transform: translateY(-1px); }
+    .hero-meta { display: flex; gap: 20px; flex-wrap: wrap; }
+    .hero-meta-item {
+      font-size: 0.78rem; color: var(--text3);
+      display: flex; align-items: center; gap: 5px;
+    }
+
+    /* ── CAMERA CARD ── */
+    .cam-outer {
       position: relative;
-      padding: 80px 24px 100px;
-      display: flex; flex-direction: column; align-items: center;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+      max-width: 320px;
+      margin-left: auto;
+      background: var(--cam-bg);
+      aspect-ratio: 4/5;
+      overflow: visible;
+    }
+    .cam-inner {
+      position: absolute; inset: 0;
+      border-radius: 16px;
       overflow: hidden;
-      /* gradient wash behind orbs */
-      background: var(--bg);
-      transition: background 0.35s;
     }
+    .cam-chrome {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 10;
+      height: 36px;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .cam-label {
+      font-size: 0.66rem; letter-spacing: 0.07em; text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+    }
+    .cam-indicator {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #f0f0f0;
+      box-shadow: 0 0 6px rgba(255,255,255,0.5);
+      animation: cam-blink 4s ease-in-out infinite;
+    }
+    @keyframes cam-blink {
+      0%, 88%, 100% { opacity: 1; }
+      94% { opacity: 0.2; }
+    }
+    canvas#handCanvas {
+      display: block; width: 100%; height: 100%;
+    }
+    canvas#ringCanvas {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 5;
+    }
+    /* HUD pill: outside cam-inner overflow so it can slide up freely */
+    .hud-pill {
+      position: absolute; bottom: 14px; left: 50%;
+      transform: translateX(-50%) translateY(16px);
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 40px;
+      padding: 9px 18px;
+      display: flex; align-items: center; gap: 9px;
+      white-space: nowrap;
+      transition: opacity .3s ease, transform .4s cubic-bezier(.34,1.56,.64,1);
+      opacity: 0;
+      z-index: 20;
+      pointer-events: none;
+    }
+    .hud-pill.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .hud-pill-icon { font-size: 1rem; }
+    .hud-pill-label { font-size: 0.78rem; font-weight: 600; color: rgba(255,255,255,0.9); letter-spacing: 0.01em; }
 
-    /* ── Floating background orbs ── */
-    .hero-orbs {
-      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    /* ── GESTURE PICKER ── */
+    .gesture-picker {
+      display: flex; gap: 5px; flex-wrap: wrap;
+      margin-top: 24px;
     }
-    .orb {
-      position: absolute; border-radius: 50%;
-      filter: blur(72px);
-      animation: orb-drift 12s ease-in-out infinite;
+    .gpick {
+      display: flex; align-items: center; gap: 5px;
+      padding: 5px 10px; border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      cursor: pointer; font-size: 0.77rem; color: var(--text2);
+      transition: border-color .15s, color .15s, background .15s;
+      user-select: none;
     }
-    .orb-1 {
-      width: 520px; height: 520px;
-      background: var(--orb1);
-      top: -160px; right: -100px;
-      animation-duration: 14s;
-    }
-    .orb-2 {
-      width: 440px; height: 440px;
-      background: var(--orb2);
-      bottom: -140px; left: -80px;
-      animation-duration: 16s; animation-delay: -4s;
-    }
-    .orb-3 {
-      width: 320px; height: 320px;
-      background: var(--orb3);
-      top: 30%; left: 8%;
-      animation-duration: 11s; animation-delay: -7s;
-    }
-    .orb-4 {
-      width: 220px; height: 220px;
-      background: var(--orb4);
-      bottom: 10%; right: 12%;
-      animation-duration: 13s; animation-delay: -2s;
-    }
-    @keyframes orb-drift {
-      0%, 100% { transform: translate(0, 0) scale(1); }
-      33%       { transform: translate(30px, -24px) scale(1.04); }
-      66%       { transform: translate(-18px, 20px) scale(0.97); }
-    }
-
-
-    /* ── Frosted glass card ── */
-    .hero-glass {
-      position: relative; z-index: 2;
-      width: 100%; max-width: 620px;
-      background: var(--glass-bg);
-      backdrop-filter: blur(48px) saturate(200%);
-      -webkit-backdrop-filter: blur(48px) saturate(200%);
-      border: 1px solid var(--glass-border);
-      border-radius: 28px;
-      padding: 52px 48px 44px;
-      text-align: center;
-      box-shadow:
-        0 2px 0 0 var(--glass-border) inset,
-        0 24px 64px var(--glass-shadow),
-        0 2px 12px rgba(0,0,0,0.06);
-      transition: background 0.35s, border-color 0.35s, box-shadow 0.35s;
-    }
-    .hero-badge {
-      display: inline-flex; align-items: center; gap: 7px;
-      background: rgba(102,85,232,0.10); border: 1px solid rgba(102,85,232,0.22);
-      color: var(--accent); border-radius: 20px;
-      padding: 5px 14px; font-size: 0.76rem;
-      letter-spacing: 0.06em; text-transform: uppercase;
-      margin-bottom: 28px;
-    }
-    .hero-glass h1 {
-      font-size: clamp(2.6rem, 6vw, 4.2rem);
-      font-weight: 800; letter-spacing: -0.045em; line-height: 1.08;
-      margin-bottom: 20px;
-      background: linear-gradient(155deg, var(--text) 20%, var(--accent));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .hero-sub {
-      font-size: 1.1rem; color: var(--muted); line-height: 1.75;
-      margin-bottom: 40px;
-    }
-    .hero-buttons {
-      display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
-      margin-bottom: 18px;
-    }
-    .btn-primary {
-      display: inline-flex; align-items: center; gap: 9px;
-      background: var(--accent); color: #fff;
-      padding: 13px 26px; border-radius: 12px;
-      font-size: 0.96rem; font-weight: 600;
-      transition: background .2s, transform .15s, box-shadow .2s;
-      text-decoration: none !important;
-    }
-    .btn-primary:hover {
-      background: var(--accent-h); transform: translateY(-2px);
-      box-shadow: 0 8px 28px rgba(102,85,232,0.30);
-    }
-    .btn-secondary {
-      display: inline-flex; align-items: center; gap: 9px;
-      background: rgba(128,128,128,0.12); border: 1px solid var(--border);
-      color: var(--text); padding: 13px 26px; border-radius: 12px;
-      font-size: 0.96rem; font-weight: 500;
-      transition: border-color .2s, transform .15s, background .2s;
-      text-decoration: none !important;
-    }
-    .btn-secondary:hover { border-color: var(--accent); transform: translateY(-2px); }
-    .hero-note { font-size: 0.78rem; color: var(--muted); }
-    .hero-note span { margin: 0 5px; opacity: 0.35; }
-
-    /* ── HUD demo (below glass, still inside hero) ── */
-    .hud-demo {
-      position: relative; z-index: 2;
-      width: 100%; max-width: 480px;
-      height: 180px; margin-top: 32px;
-    }
-    .hud-screen {
-      width: 100%; height: 100%;
-      background: var(--glass-bg);
-      backdrop-filter: blur(48px) saturate(200%);
-      -webkit-backdrop-filter: blur(48px) saturate(200%);
-      border: 1px solid var(--glass-border);
-      border-radius: 18px; overflow: hidden;
-      position: relative;
-      box-shadow: 0 20px 56px var(--glass-shadow), 0 2px 8px rgba(0,0,0,0.06);
-      transition: background 0.35s, border-color 0.35s;
-    }
-    .hud-menubar {
-      height: 24px;
-      background: rgba(128,128,128,0.08);
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: flex-end;
-      padding: 0 14px; gap: 10px;
-      transition: border-color 0.35s;
-    }
-    .hud-menubar-txt  { font-size: 0.68rem; color: var(--muted); }
-    .hud-menubar-icon { font-size: 0.82rem; }
-    .hud-content {
-      display: flex; align-items: center; justify-content: center;
-      height: calc(100% - 24px);
-      font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
-      color: var(--muted); opacity: 0.4;
-    }
-    /* the floating HUD tile */
-    .hud-tile {
-      position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
-      width: 88px; height: 88px;
-      background: var(--glass-bg);
-      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--glass-border);
-      border-radius: 20px;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 5px;
-      box-shadow: 0 8px 28px var(--glass-shadow);
-      animation: hud-float 3s ease-in-out infinite;
-      transition: background 0.35s, border-color 0.35s;
-    }
-    .hud-tile::before {
-      content: ""; position: absolute; inset: -7px; border-radius: 28px;
-      border: 1px solid rgba(102,85,232,0.3);
-      animation: hud-ring 3s ease-in-out infinite;
-    }
-    .hud-tile-icon  { font-size: 2rem; line-height: 1; }
-    .hud-tile-label { font-size: 0.62rem; font-weight: 600; color: var(--muted); }
-    @keyframes hud-float {
-      0%, 100% { transform: translateX(-50%) translateY(0); }
-      50%       { transform: translateX(-50%) translateY(-6px); }
-    }
-    @keyframes hud-ring {
-      0%, 100% { opacity: 0.6; transform: scale(1); }
-      50%       { opacity: 0;   transform: scale(1.14); }
-    }
-
-    /* ════════════════════════════════════════
-       SECTIONS (shared)
-    ════════════════════════════════════════ */
-    section { padding: 88px 24px; transition: background 0.35s; }
-    .inner { max-width: 960px; margin: 0 auto; }
-    .surface-section {
+    .gpick:hover { border-color: var(--text); color: var(--text); }
+    .gpick.active {
+      border-color: var(--text);
       background: var(--surface);
+      color: var(--text);
+    }
+    .gpick-emoji { font-size: 0.85rem; }
+
+    /* ── DIVIDER ── */
+    .divider {
+      height: 1px; background: var(--border);
+      max-width: 1080px; margin: 0 auto;
+    }
+
+    /* ── STAT STRIP ── */
+    .stat-strip {
       border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
-      transition: background 0.35s, border-color 0.35s;
     }
-    .label {
-      text-align: center; font-size: 0.74rem;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      color: var(--accent); margin-bottom: 12px;
+    .stat-inner {
+      max-width: 1080px; margin: 0 auto;
+      padding: 32px 48px;
+      display: grid; grid-template-columns: repeat(4, 1fr);
+    }
+    .stat {
+      padding: 0 24px; text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .stat:first-child { padding-left: 0; }
+    .stat:last-child  { border-right: none; padding-right: 0; }
+    .stat-num { font-size: 2rem; font-weight: 800; letter-spacing: -0.045em; color: var(--text); }
+    .stat-label { font-size: 0.78rem; color: var(--text2); margin-top: 3px; }
+
+    /* ── SECTIONS ── */
+    section { padding: 80px 48px; }
+    .section-inner { max-width: 1080px; margin: 0 auto; }
+    .surf { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); transition: background .25s; }
+    .sec-eyebrow {
+      font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text3); margin-bottom: 12px; font-weight: 600;
     }
     .sec-h2 {
-      text-align: center;
-      font-size: clamp(1.9rem, 4vw, 2.8rem);
-      font-weight: 700; letter-spacing: -0.035em;
-      margin-bottom: 14px; line-height: 1.2;
-      transition: color 0.35s;
+      font-size: clamp(1.9rem, 3.5vw, 2.7rem);
+      font-weight: 700; letter-spacing: -0.04em; margin-bottom: 14px;
+      line-height: 1.15;
     }
     .sec-sub {
-      text-align: center; color: var(--muted);
-      max-width: 460px; margin: 0 auto 52px;
-      font-size: 1rem; line-height: 1.7;
-      transition: color 0.35s;
+      color: var(--text2); max-width: 440px;
+      font-size: 0.96rem; line-height: 1.75; margin-bottom: 52px;
     }
 
-    /* ════════════════════════════════════════
-       HOW IT WORKS
-    ════════════════════════════════════════ */
-    .steps {
-      display: grid; grid-template-columns: repeat(3, 1fr);
-      max-width: 760px; margin: 0 auto; position: relative;
+    /* ── HOW ── */
+    .how-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+      border: 1px solid var(--border); border-radius: var(--r);
+      overflow: hidden;
     }
-    .steps::before {
-      content: ""; position: absolute;
-      top: 27px; left: calc(16.66% + 8px); right: calc(16.66% + 8px);
-      height: 1px;
-      background: linear-gradient(90deg, var(--accent) 0%, transparent 100%);
-      opacity: 0.2;
+    .how-step {
+      padding: 32px 28px;
+      background: var(--bg);
     }
-    .step { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0 20px; }
-    .step-circle {
-      width: 54px; height: 54px; border-radius: 50%;
-      background: rgba(102,85,232,0.08); border: 1px solid rgba(102,85,232,0.2);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.4rem; margin-bottom: 18px; position: relative; z-index: 1;
+    .how-num {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em;
+      color: var(--text3); margin-bottom: 14px;
     }
-    .step h3 { font-size: 0.93rem; font-weight: 600; margin-bottom: 6px; }
-    .step p  { font-size: 0.84rem; color: var(--muted); line-height: 1.65; }
+    .how-step h3 { font-size: 1rem; font-weight: 600; margin-bottom: 8px; }
+    .how-step p  { font-size: 0.87rem; color: var(--text2); line-height: 1.7; }
 
-    /* ════════════════════════════════════════
-       FEATURE CARDS
-    ════════════════════════════════════════ */
-    .feat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
-    .feat-card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--r); padding: 28px 24px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-      transition: border-color .2s, transform .2s, box-shadow .2s, background 0.35s;
+    /* ── GESTURES ── */
+    .gesture-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
     }
-    .feat-card:hover { border-color: rgba(102,85,232,0.3); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
-    .feat-icon { font-size: 1.8rem; margin-bottom: 14px; }
-    .feat-card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 8px; }
-    .feat-card p  { color: var(--muted); font-size: 0.9rem; line-height: 1.65; }
-
-    /* ════════════════════════════════════════
-       GESTURE CARDS
-    ════════════════════════════════════════ */
-    .gesture-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
-    .gesture-card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: var(--r); padding: 16px 14px;
+    .gc {
+      background: var(--bg);
+      padding: 18px 20px;
       display: flex; align-items: center; gap: 14px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-      transition: border-color .2s, transform .2s, box-shadow .2s, background 0.35s;
+      transition: background .15s;
     }
-    .gesture-card:hover { border-color: rgba(102,85,232,0.3); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
-    .g-emoji { font-size: 1.9rem; width: 40px; text-align: center; flex-shrink: 0; }
-    .g-info h4 { font-size: 0.87rem; font-weight: 600; margin-bottom: 2px; }
-    .g-info p  { font-size: 0.8rem; color: var(--muted); }
+    .gc:hover { background: var(--surface); }
+    .gc-e { font-size: 1.5rem; flex-shrink: 0; width: 32px; text-align: center; }
+    .gc-name { font-size: 0.85rem; font-weight: 600; margin-bottom: 1px; }
+    .gc-action { font-size: 0.77rem; color: var(--text2); }
 
-    /* ════════════════════════════════════════
-       PLUGIN SECTION
-    ════════════════════════════════════════ */
+    /* ── PLUGIN ── */
     .plugin-layout {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 56px; align-items: center; max-width: 900px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start;
     }
-    .plugin-text .label { text-align: left; }
     .plugin-text h2 {
-      font-size: clamp(1.7rem, 3.5vw, 2.4rem);
-      font-weight: 700; letter-spacing: -0.03em;
-      margin-bottom: 16px; line-height: 1.25;
+      font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700;
+      letter-spacing: -0.035em; margin-bottom: 14px;
     }
-    .plugin-text p { color: var(--muted); font-size: 0.95rem; line-height: 1.7; margin-bottom: 24px; }
-    .plugin-bullets { list-style: none; display: flex; flex-direction: column; gap: 10px; }
-    .plugin-bullets li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.9rem; color: var(--muted); }
-    .plugin-bullets li::before { content: "✦"; color: var(--accent); font-size: 0.65rem; margin-top: 5px; flex-shrink: 0; }
+    .plugin-text p  { color: var(--text2); font-size: 0.93rem; line-height: 1.75; margin-bottom: 20px; }
+    .plugin-list { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+    .plugin-list li {
+      font-size: 0.87rem; color: var(--text2);
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .plugin-list li::before { content: "→"; color: var(--text3); font-size: 0.8rem; margin-top: 2px; flex-shrink: 0; }
 
-    pre.code-block {
+    pre.code {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 14px; padding: 24px 22px;
+      border-radius: var(--r); padding: 24px 22px;
       font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
-      font-size: 0.82rem; line-height: 1.9;
-      overflow-x: auto;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-      transition: background 0.35s, border-color 0.35s;
+      font-size: 0.8rem; line-height: 1.9; overflow-x: auto;
     }
-    /* light syntax */
-    pre.code-block { color: #2d2d3a; }
-    .tok-comment { color: #a0a0b8; }
-    .tok-keyword { color: #6655e8; }
-    .tok-string  { color: #2e9e6e; }
-    .tok-fn      { color: #2878c8; }
-    .tok-name    { color: #c07820; }
-    /* dark syntax overrides */
-    [data-theme="dark"] pre.code-block { color: #c5c5e0; }
-    [data-theme="dark"] .tok-comment   { color: #555570; }
-    [data-theme="dark"] .tok-keyword   { color: #9d8fff; }
-    [data-theme="dark"] .tok-string    { color: #7ec8a0; }
-    [data-theme="dark"] .tok-fn        { color: #7ab8f5; }
-    [data-theme="dark"] .tok-name      { color: #e8c97a; }
+    pre.code { color: var(--text2); }
+    .c { color: var(--text3); }
+    .k { color: var(--text); font-weight: 600; }
+    .s { color: var(--text2); }
+    .f { color: var(--text); }
+    .n { color: var(--text); }
 
-    /* ════════════════════════════════════════
-       DEV INSTALL
-    ════════════════════════════════════════ */
-    .dev-install { max-width: 620px; margin: 0 auto; }
-    .dev-steps { display: grid; grid-template-columns: repeat(3,1fr); margin-bottom: 44px; }
-    .dev-step { text-align: center; padding: 0 16px; }
-    .dev-num {
-      width: 36px; height: 36px; border-radius: 50%;
-      background: rgba(102,85,232,0.08); border: 1px solid rgba(102,85,232,0.2);
-      color: var(--accent); font-size: 0.85rem; font-weight: 700;
-      display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;
+    /* ── DEV INSTALL ── */
+    .install-wrap { max-width: 580px; }
+    .install-steps { display: flex; flex-direction: column; gap: 0; margin-bottom: 36px; }
+    .install-step {
+      display: flex; gap: 18px; align-items: flex-start;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
     }
-    .dev-step h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
-    .dev-step p  { font-size: 0.82rem; color: var(--muted); }
+    .install-step:last-child { border-bottom: none; }
+    .install-n {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 1px solid var(--border);
+      color: var(--text3); font-size: 0.7rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 2px;
+    }
+    .install-step h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 3px; }
+    .install-step p  { font-size: 0.83rem; color: var(--text2); }
 
     pre.terminal {
-      background: #111118; border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 12px; padding: 22px 22px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 22px;
       font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
-      font-size: 0.85rem; color: #c8c8e0; line-height: 1.9;
-      overflow-x: auto;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+      font-size: 0.82rem; color: var(--text2); line-height: 1.9; overflow-x: auto;
     }
-    pre.terminal .c { color: #44446a; }
-    pre.terminal .p { color: var(--accent-h); user-select: none; }
     pre.terminal::before {
       content: "● ● ●"; display: block;
-      color: rgba(255,255,255,0.15); letter-spacing: 5px;
-      font-size: 0.58rem; margin-bottom: 16px;
+      color: var(--border); letter-spacing: 4px;
+      font-size: 0.5rem; margin-bottom: 16px;
+    }
+    .tp { color: var(--text); user-select: none; }
+    .tc { color: var(--text3); }
+
+    code {
+      font-family: "SF Mono", monospace; font-size: 0.83em;
+      background: var(--surface); padding: 1px 5px; border-radius: 4px;
+      border: 1px solid var(--border); color: var(--text);
     }
 
-    /* ════════════════════════════════════════
-       FOOTER
-    ════════════════════════════════════════ */
+    /* ── FOOTER ── */
     footer {
       border-top: 1px solid var(--border);
-      padding: 36px 48px;
+      padding: 28px 48px;
       display: flex; align-items: center; justify-content: space-between;
-      flex-wrap: wrap; gap: 16px;
-      transition: border-color 0.35s;
+      flex-wrap: wrap; gap: 14px;
     }
-    .footer-brand { font-size: 0.9rem; color: var(--muted); }
-    .footer-links { display: flex; gap: 24px; }
-    .footer-links a { color: var(--muted); font-size: 0.88rem; transition: color .2s; }
-    .footer-links a:hover { color: var(--text); text-decoration: none; }
-
-    /* inline code */
-    code {
-      font-family: "SF Mono", "Cascadia Code", monospace;
-      font-size: 0.85em;
-      background: var(--surface); border: 1px solid var(--border);
-      padding: 1px 6px; border-radius: 5px;
-      transition: background 0.35s;
+    .foot-left {
+      font-size: 0.82rem; color: var(--text2);
+      display: flex; align-items: center; gap: 12px;
     }
+    .foot-logo { width: 16px; height: 16px; }
+    .foot-logo path { fill: var(--text2); transition: fill .25s; }
+    .foot-links { display: flex; gap: 20px; align-items: center; }
+    .foot-links a {
+      font-size: 0.82rem; color: var(--text2); transition: color .15s;
+    }
+    .foot-links a:hover { color: var(--text); }
 
-    /* ════════════════════════════════════════
-       RESPONSIVE
-    ════════════════════════════════════════ */
-    @media (max-width: 768px) {
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; padding: 52px 24px 64px; gap: 48px; }
+      .cam-outer { max-width: 100%; margin: 0; }
+      .gesture-grid { grid-template-columns: repeat(2, 1fr); }
+      .plugin-layout { grid-template-columns: 1fr; gap: 36px; }
+      .how-grid { grid-template-columns: 1fr; }
+      .stat-inner { grid-template-columns: repeat(2, 1fr); gap: 1px; }
+      .stat { border-right: none; border-bottom: 1px solid var(--border); padding: 20px 0; }
+    }
+    @media (max-width: 600px) {
       nav { padding: 0 20px; }
-      .nav-links a:not(.btn-nav) { display: none; }
-      .plugin-layout { grid-template-columns: 1fr; gap: 32px; }
-      .steps, .dev-steps { grid-template-columns: 1fr; gap: 28px; }
-      .steps::before { display: none; }
-      footer { padding: 28px 20px; flex-direction: column; align-items: flex-start; }
-      .hero-glass { padding: 36px 24px 32px; }
-    }
-    @media (max-width: 480px) {
-      section { padding: 64px 20px; }
-      .hud-demo { height: 150px; }
-      .orb-1 { width: 300px; height: 300px; }
-      .orb-2 { width: 260px; height: 260px; }
+      .nav-link { display: none; }
+      section { padding: 60px 20px; }
+      .stat-inner { padding: 0 20px; }
+      footer { padding: 24px 20px; flex-direction: column; align-items: flex-start; }
     }
   </style>
 </head>
 <body>
 
-<!-- ══════════════════════ NAV ══════════════════════ -->
+<!-- NAV -->
 <nav>
-  <div class="nav-brand"><span class="hand">✋</span> Waiv</div>
+  <div class="nav-brand">
+    <!-- waiv.svg inline, currentColor fills -->
+    <svg class="nav-logo" viewBox="0 0 230 226" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M114.993 0C47.1607 0 0 47.1582 0 112.733C0 178.304 47.1582 225.141 114.993 225.141C182.829 225.141 229.987 178.304 229.987 112.733C229.987 47.1607 182.826 0 114.993 0ZM105.344 184.613C59.063 184.613 26.3088 150.792 26.3088 102.729C26.3088 54.6656 59.0605 20.4894 105.344 20.4894C151.628 20.4894 184.38 54.6681 184.38 102.729C184.38 150.792 151.628 184.613 105.344 184.613Z" fill="currentColor"/>
+      <path d="M71.964 58.617L58.7538 59.9527C54.6934 60.3633 51.6038 63.7824 51.6038 67.8631V98.4452C51.6038 101.583 54.3158 104.034 57.4384 103.717L70.6486 102.381C74.7089 101.971 77.7986 98.5516 77.7986 94.471V63.8889C77.7986 60.7511 75.0866 58.3001 71.964 58.617Z" fill="currentColor"/>
+      <path d="M125.704 58.617L112.494 59.9527C108.434 60.3633 105.344 63.7824 105.344 67.8631V98.4452C105.344 101.583 108.056 104.034 111.179 103.717L124.389 102.381C128.449 101.971 131.539 98.5516 131.539 94.471V63.8889C131.539 60.7511 128.827 58.3001 125.704 58.617Z" fill="currentColor"/>
+    </svg>
+    Waiv
+  </div>
   <div class="nav-right">
-    <div class="nav-links">
-      <a href="#gestures">Gestures</a>
-      <a href="#plugins">Plugins</a>
-      <a href="#install">Developers</a>
-    </div>
-    <!-- Theme toggle -->
-    <button class="theme-btn" id="themeBtn" aria-label="Toggle light / dark mode">
-      <!-- moon: shown in light mode -->
-      <svg class="t-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-      </svg>
-      <!-- sun: shown in dark mode -->
-      <svg class="t-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="5"/>
-        <line x1="12" y1="1"  x2="12" y2="3"/>
-        <line x1="12" y1="21" x2="12" y2="23"/>
-        <line x1="4.22"  y1="4.22"  x2="5.64"  y2="5.64"/>
-        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-        <line x1="1"  y1="12" x2="3"  y2="12"/>
-        <line x1="21" y1="12" x2="23" y2="12"/>
-        <line x1="4.22"  y1="19.78" x2="5.64"  y2="18.36"/>
-        <line x1="18.36" y1="5.64"  x2="19.78" y2="4.22"/>
-      </svg>
-    </button>
-    <!-- GitHub -->
-    <a href="https://github.com/mail2acssh-code/waiv" class="btn-nav" target="_blank" rel="noopener">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
-      </svg>
+    <a href="#gestures" class="nav-link">Gestures</a>
+    <a href="#plugins"  class="nav-link">Plugins</a>
+    <a href="#install"  class="nav-link">Install</a>
+    <div class="nav-sep"></div>
+    <a href="https://github.com/mail2acssh-code/waiv" class="btn-nav-gh" target="_blank" rel="noopener">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/></svg>
       GitHub
     </a>
+    <button class="theme-btn" id="themeBtn" aria-label="Toggle theme">
+      <svg class="t-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="t-sun"  width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </button>
   </div>
 </nav>
 
-<!-- ══════════════════════ HERO ══════════════════════ -->
-<section class="hero">
-
-  <!-- floating orbs (behind glass) -->
-  <div class="hero-orbs">
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    <div class="orb orb-3"></div>
-    <div class="orb orb-4"></div>
-  </div>
-
-  <!-- frosted glass card -->
-  <div class="hero-glass">
-    <div class="hero-badge">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-      Free &amp; Open Source · macOS
-    </div>
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-text">
     <h1>Wave at your Mac.<br>It listens.</h1>
-    <p class="hero-sub">Waiv uses your webcam to detect hand gestures and control media, volume, and more — no clicks, no shortcuts, no cloud.</p>
-    <div class="hero-buttons">
-      <!-- Replace with your GitHub Releases DMG URL -->
-      <a href="https://github.com/mail2acssh-code/waiv/releases/latest/download/Waiv.dmg" class="btn-primary">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
+    <p>Waiv reads your hand through the webcam and turns gestures into actions — play, pause, skip, mute. All on-device, all private.</p>
+    <div class="hero-ctas">
+      <a href="https://github.com/mail2acssh-code/waiv/releases/latest/download/Waiv.dmg" class="btn-dl">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Download for Mac
       </a>
-      <a href="https://github.com/mail2acssh-code/waiv" class="btn-secondary" target="_blank" rel="noopener">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
-        </svg>
+      <a href="https://github.com/mail2acssh-code/waiv" class="btn-gh" target="_blank" rel="noopener">
         View on GitHub
       </a>
     </div>
-    <p class="hero-note">
-      macOS 12 Monterey or later <span>·</span> Requires webcam <span>·</span> Free forever
-    </p>
-  </div>
-
-  <!-- HUD preview — also sits over the blurred orb background -->
-  <div class="hud-demo">
-    <div class="hud-screen">
-      <div class="hud-menubar">
-        <span class="hud-menubar-txt">Tue 14:32</span>
-        <span class="hud-menubar-icon">✋</span>
-        <span class="hud-menubar-icon">🔋</span>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        macOS 12+
       </div>
-      <div class="hud-content">Desktop</div>
+      <div class="hero-meta-item">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Free &amp; open source
+      </div>
+      <div class="hero-meta-item">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        No account required
+      </div>
     </div>
-    <div class="hud-tile">
-      <div class="hud-tile-icon">▶︎⏸</div>
-      <div class="hud-tile-label">Play / Pause</div>
+    <div class="gesture-picker" id="gesturePicker" style="margin-top:28px">
+      <button class="gpick active" data-gesture="open_palm"><span class="gpick-emoji">✋</span> Open Palm</button>
+      <button class="gpick" data-gesture="thumbs_up">      <span class="gpick-emoji">👍</span> Thumbs Up</button>
+      <button class="gpick" data-gesture="thumbs_down">    <span class="gpick-emoji">👎</span> Thumbs Down</button>
+      <button class="gpick" data-gesture="thumb_right">    <span class="gpick-emoji">👉</span> Thumb Right</button>
+      <button class="gpick" data-gesture="thumb_left">     <span class="gpick-emoji">👈</span> Thumb Left</button>
+      <button class="gpick" data-gesture="index_up">       <span class="gpick-emoji">☝️</span> Index Up</button>
+      <button class="gpick" data-gesture="middle_finger">  <span class="gpick-emoji">🖕</span> Middle Finger</button>
+      <button class="gpick" data-gesture="pinky_up">       <span class="gpick-emoji">🤙</span> Pinky Up</button>
     </div>
   </div>
 
+  <!-- Camera card: .cam-outer has overflow:visible so HUD pill can show -->
+  <div class="cam-outer" id="camWrap">
+    <div class="cam-inner" id="camInner">
+      <div class="cam-chrome">
+        <span class="cam-label">Camera · Waiv</span>
+        <span class="cam-indicator"></span>
+      </div>
+      <canvas id="handCanvas"></canvas>
+      <canvas id="ringCanvas"></canvas>
+    </div>
+    <!-- HUD pill lives outside cam-inner so overflow:hidden doesn't clip it -->
+    <div class="hud-pill" id="hudPill">
+      <span class="hud-pill-icon" id="hudIcon"></span>
+      <span class="hud-pill-label" id="hudLabel"></span>
+    </div>
+  </div>
+</div>
+
+<!-- STAT STRIP -->
+<div class="stat-strip">
+  <div class="stat-inner">
+    <div class="stat"><div class="stat-num">8</div><div class="stat-label">Built-in gestures</div></div>
+    <div class="stat"><div class="stat-num">0</div><div class="stat-label">Cloud requests</div></div>
+    <div class="stat"><div class="stat-num">&lt;1%</div><div class="stat-label">CPU when idle</div></div>
+    <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Plugins supported</div></div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<section class="surf" id="how">
+  <div class="section-inner">
+    <div class="sec-eyebrow">How it works</div>
+    <h2 class="sec-h2">Three steps, no friction.</h2>
+    <p class="sec-sub">All processing happens locally using MediaPipe hand landmarks. Nothing leaves your Mac.</p>
+    <div class="how-grid">
+      <div class="how-step">
+        <div class="how-num">01</div>
+        <h3>Webcam reads 21 landmarks</h3>
+        <p>MediaPipe maps your hand into 21 skeletal points in real time — pure geometry, no ML API, no network call.</p>
+      </div>
+      <div class="how-step" style="border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
+        <div class="how-num">02</div>
+        <h3>Hold for 2 seconds to confirm</h3>
+        <p>Waiv requires a steady hold before firing, so accidental gestures never trigger. A ring fills as you hold.</p>
+      </div>
+      <div class="how-step">
+        <div class="how-num">03</div>
+        <h3>Action runs, HUD confirms</h3>
+        <p>A frosted-glass tile slides up to confirm what fired. Then it's back to watching — no app switching needed.</p>
+      </div>
+    </div>
+  </div>
 </section>
 
-<!-- ══════════════════════ HOW IT WORKS ══════════════════════ -->
-<section class="surface-section">
-  <div class="inner">
-    <div class="label">How it works</div>
-    <h2 class="sec-h2">Three steps, zero friction.</h2>
-    <p class="sec-sub">All gesture detection runs locally using MediaPipe. Nothing leaves your machine.</p>
-    <div class="steps">
-      <div class="step">
-        <div class="step-circle">📷</div>
-        <h3>Camera reads your hand</h3>
-        <p>MediaPipe tracks 21 hand landmarks in real time using pure geometry — no ML API, no network calls.</p>
-      </div>
-      <div class="step">
-        <div class="step-circle">✋</div>
-        <h3>Gesture is recognised</h3>
-        <p>Hold any gesture steady for 2 seconds. Waiv debounces false positives so accidental triggers don't happen.</p>
-      </div>
-      <div class="step">
-        <div class="step-circle">⚡</div>
-        <h3>Action fires instantly</h3>
-        <p>A frosted-glass HUD confirms what fired. Volume, playback, mic, lock screen — or your own plugin.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ══════════════════════ FEATURES ══════════════════════ -->
-<section>
-  <div class="inner">
-    <div class="label">Why Waiv</div>
-    <h2 class="sec-h2">Lightweight. Private. Extensible.</h2>
-    <p class="sec-sub">Built to stay out of your way until you need it.</p>
-    <div class="feat-grid">
-      <div class="feat-card">
-        <div class="feat-icon">🔒</div>
-        <h3>100% On-Device</h3>
-        <p>Your camera feed is processed entirely on your Mac. No account, no subscription, no network requests — ever.</p>
-      </div>
-      <div class="feat-card">
-        <div class="feat-icon">🪶</div>
-        <h3>Featherlight</h3>
-        <p>Lives in the menu bar, starts at login, and sleeps when no media is playing. Near-zero CPU when idle.</p>
-      </div>
-      <div class="feat-card">
-        <div class="feat-icon">🔌</div>
-        <h3>Plugin System</h3>
-        <p>Drop a single Python file into <code>plugins/</code> to add gesture controls for any app — Zoom, Figma, Slack, whatever.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ══════════════════════ GESTURES ══════════════════════ -->
-<section class="surface-section" id="gestures">
-  <div class="inner">
-    <div class="label">Built-in Gestures</div>
-    <h2 class="sec-h2">Eight gestures. Hold 2 s to fire.</h2>
-    <p class="sec-sub">Works with Spotify, Apple Music, YouTube, Netflix, and any app with a media session.</p>
+<!-- GESTURES -->
+<section id="gestures">
+  <div class="section-inner">
+    <div class="sec-eyebrow">Gestures</div>
+    <h2 class="sec-h2">Eight gestures. All remappable.</h2>
+    <p class="sec-sub">Works with Spotify, Apple Music, YouTube, Netflix — any app with a system media session.</p>
     <div class="gesture-grid">
-      <div class="gesture-card"><div class="g-emoji">👍</div><div class="g-info"><h4>Thumbs Up</h4><p>Volume Up</p></div></div>
-      <div class="gesture-card"><div class="g-emoji">👎</div><div class="g-info"><h4>Thumbs Down</h4><p>Volume Down</p></div></div>
-      <div class="gesture-card"><div class="g-emoji">✋</div><div class="g-info"><h4>Open Palm</h4><p>Play / Pause</p></div></div>
-      <div class="gesture-card"><div class="g-emoji">👉</div><div class="g-info"><h4>Thumb Right</h4><p>Next Track</p></div></div>
-      <div class="gesture-card"><div class="g-emoji">👈</div><div class="g-info"><h4>Thumb Left</h4><p>Previous Track</p></div></div>
-      <div class="gesture-card"><div class="g-emoji">🖕</div><div class="g-info"><h4>Middle Finger</h4><p>Lock Screen</p></div></div>
-      <div class="gesture-card"><div class="g-emoji">☝️</div><div class="g-info"><h4>Index Up</h4><p>Toggle Mic</p></div></div>
-      <div class="gesture-card"><div class="g-emoji">🤙</div><div class="g-info"><h4>Pinky Up</h4><p>Quit Waiv</p></div></div>
+      <div class="gc"><div class="gc-e">👍</div><div><div class="gc-name">Thumbs Up</div>   <div class="gc-action">Volume Up</div></div></div>
+      <div class="gc"><div class="gc-e">👎</div><div><div class="gc-name">Thumbs Down</div> <div class="gc-action">Volume Down</div></div></div>
+      <div class="gc"><div class="gc-e">✋</div><div><div class="gc-name">Open Palm</div>   <div class="gc-action">Play / Pause</div></div></div>
+      <div class="gc"><div class="gc-e">👉</div><div><div class="gc-name">Thumb Right</div> <div class="gc-action">Next Track</div></div></div>
+      <div class="gc"><div class="gc-e">👈</div><div><div class="gc-name">Thumb Left</div>  <div class="gc-action">Previous Track</div></div></div>
+      <div class="gc"><div class="gc-e">🖕</div><div><div class="gc-name">Middle Finger</div><div class="gc-action">Lock Screen</div></div></div>
+      <div class="gc"><div class="gc-e">☝️</div><div><div class="gc-name">Index Up</div>    <div class="gc-action">Toggle Mic</div></div></div>
+      <div class="gc"><div class="gc-e">🤙</div><div><div class="gc-name">Pinky Up</div>    <div class="gc-action">Quit Waiv</div></div></div>
     </div>
   </div>
 </section>
 
-<!-- ══════════════════════ PLUGINS ══════════════════════ -->
-<section id="plugins">
-  <div class="plugin-layout">
-    <div class="plugin-text">
-      <div class="label" style="text-align:left">Plugin System</div>
-      <h2>Add gestures for<br>any app.</h2>
-      <p>Drop a <code>.py</code> file into <code>plugins/</code>. Waiv auto-loads it at startup — no registration, no config.</p>
-      <ul class="plugin-bullets">
-        <li>Override any default gesture when your app is active</li>
-        <li>Falls back to defaults the moment your app quits</li>
-        <li>No core code changes — just drop the file and restart</li>
-      </ul>
-    </div>
-    <pre class="code-block"><span class="tok-comment"># plugins/zoom.py</span>
-<span class="tok-keyword">import</span> subprocess
+<!-- PLUGINS -->
+<section class="surf" id="plugins">
+  <div class="section-inner">
+    <div class="plugin-layout">
+      <div class="plugin-text">
+        <div class="sec-eyebrow">Plugin system</div>
+        <h2>Add gestures for any app.</h2>
+        <p>Drop a <code>.py</code> file into <code>plugins/</code>. Waiv loads it automatically at startup. No registration, no config file.</p>
+        <ul class="plugin-list">
+          <li>Your plugin overrides defaults only when <code>is_active()</code> returns true</li>
+          <li>Falls back to default media controls the moment your app quits</li>
+          <li>Zoom, Figma, Final Cut, Slack — anything AppleScript can control</li>
+        </ul>
+      </div>
+      <pre class="code"><span class="c"># plugins/zoom.py</span>
+<span class="k">import</span> subprocess
 
-<span class="tok-keyword">def</span> <span class="tok-fn">is_active</span>():
-    <span class="tok-comment"># Only activates while Zoom is running</span>
-    r = subprocess.<span class="tok-fn">run</span>(
-        [<span class="tok-string">"osascript"</span>, <span class="tok-string">"-e"</span>,
-         <span class="tok-string">'(name of processes) contains "zoom.us"'</span>],
-        capture_output=<span class="tok-keyword">True</span>, text=<span class="tok-keyword">True</span>
+<span class="k">def</span> <span class="f">is_active</span>():
+    r = subprocess.<span class="f">run</span>(
+        [<span class="s">"osascript"</span>, <span class="s">"-e"</span>,
+         <span class="s">'(name of processes) contains "zoom.us"'</span>],
+        capture_output=<span class="k">True</span>, text=<span class="k">True</span>
     )
-    <span class="tok-keyword">return</span> r.stdout.strip() == <span class="tok-string">"true"</span>
+    <span class="k">return</span> r.stdout.strip() == <span class="s">"true"</span>
 
-<span class="tok-name">GESTURE_ACTIONS</span> = {
-    <span class="tok-string">"open_palm"</span>: toggle_video,  <span class="tok-comment"># ✋ camera on/off</span>
-    <span class="tok-string">"index_up"</span>:  toggle_mic,    <span class="tok-comment"># ☝️  mute/unmute</span>
+<span class="n">GESTURE_ACTIONS</span> = {
+    <span class="s">"open_palm"</span>: toggle_video,  <span class="c"># ✋ camera</span>
+    <span class="s">"index_up"</span>:  toggle_mic,    <span class="c"># ☝️  mute</span>
 }</pre>
-  </div>
-</section>
-
-<!-- ══════════════════════ DEV INSTALL ══════════════════════ -->
-<section class="surface-section" id="install">
-  <div class="dev-install">
-    <div class="label">For Developers</div>
-    <h2 class="sec-h2">Up and running in 60 seconds.</h2>
-    <p class="sec-sub">Clone, install, done. Or build your own plugin and submit a PR.</p>
-    <div class="dev-steps">
-      <div class="dev-step">
-        <div class="dev-num">1</div>
-        <h4>Clone</h4>
-        <p>Git clone the repo and cd in.</p>
-      </div>
-      <div class="dev-step">
-        <div class="dev-num">2</div>
-        <h4>Install</h4>
-        <p>One script sets up venv, downloads the model, starts the agent.</p>
-      </div>
-      <div class="dev-step">
-        <div class="dev-num">3</div>
-        <h4>Extend</h4>
-        <p>Drop a plugin into <code>plugins/</code> to add your app.</p>
-      </div>
     </div>
-    <pre class="terminal"><span class="c"># Clone the repo</span>
-<span class="p">$</span> git clone https://github.com/mail2acssh-code/waiv waiv
-<span class="p">$</span> cd waiv
-
-<span class="c"># Creates venv · downloads model · starts agent</span>
-<span class="p">$</span> bash install.sh</pre>
   </div>
 </section>
 
-<!-- ══════════════════════ FOOTER ══════════════════════ -->
+<!-- DEV INSTALL -->
+<section id="install">
+  <div class="section-inner">
+    <div class="install-wrap">
+      <div class="sec-eyebrow">For developers</div>
+      <h2 class="sec-h2">Clone and run in 60 seconds.</h2>
+      <p class="sec-sub" style="margin-bottom:36px">One script handles everything. Contribute a plugin and open a PR.</p>
+      <div class="install-steps">
+        <div class="install-step">
+          <div class="install-n">1</div>
+          <div><h4>Clone</h4><p>Git clone the repo and cd in.</p></div>
+        </div>
+        <div class="install-step">
+          <div class="install-n">2</div>
+          <div><h4>Run install.sh</h4><p>Creates a venv, downloads the hand-landmark model, installs the LaunchAgent.</p></div>
+        </div>
+        <div class="install-step">
+          <div class="install-n">3</div>
+          <div><h4>Add a plugin</h4><p>Drop a <code>.py</code> file in <code>plugins/</code> to control any app.</p></div>
+        </div>
+      </div>
+      <pre class="terminal"><span class="tc"># clone</span>
+<span class="tp">$</span> git clone https://github.com/mail2acssh-code/waiv waiv
+<span class="tp">$</span> cd waiv
+
+<span class="tc"># set up venv · download model · start agent</span>
+<span class="tp">$</span> bash install.sh</pre>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
 <footer>
-  <div class="footer-brand">✋ Waiv — Open source gesture control for macOS</div>
-  <div class="footer-links">
+  <div class="foot-left">
+    <svg class="foot-logo" viewBox="0 0 230 226" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M114.993 0C47.1607 0 0 47.1582 0 112.733C0 178.304 47.1582 225.141 114.993 225.141C182.829 225.141 229.987 178.304 229.987 112.733C229.987 47.1607 182.826 0 114.993 0ZM105.344 184.613C59.063 184.613 26.3088 150.792 26.3088 102.729C26.3088 54.6656 59.0605 20.4894 105.344 20.4894C151.628 20.4894 184.38 54.6681 184.38 102.729C184.38 150.792 151.628 184.613 105.344 184.613Z" fill="currentColor"/>
+      <path d="M71.964 58.617L58.7538 59.9527C54.6934 60.3633 51.6038 63.7824 51.6038 67.8631V98.4452C51.6038 101.583 54.3158 104.034 57.4384 103.717L70.6486 102.381C74.7089 101.971 77.7986 98.5516 77.7986 94.471V63.8889C77.7986 60.7511 75.0866 58.3001 71.964 58.617Z" fill="currentColor"/>
+      <path d="M125.704 58.617L112.494 59.9527C108.434 60.3633 105.344 63.7824 105.344 67.8631V98.4452C105.344 101.583 108.056 104.034 111.179 103.717L124.389 102.381C128.449 101.971 131.539 98.5516 131.539 94.471V63.8889C131.539 60.7511 128.827 58.3001 125.704 58.617Z" fill="currentColor"/>
+    </svg>
+    Waiv
+    <span style="opacity:.3">·</span>
+    <a href="https://github.com/mail2acssh-code/waiv/blob/main/LICENSE" style="color:var(--text2)">MIT License</a>
+  </div>
+  <div class="foot-links">
     <a href="https://github.com/mail2acssh-code/waiv" target="_blank" rel="noopener">GitHub</a>
     <a href="https://github.com/mail2acssh-code/waiv/blob/main/plugins/zoom.py" target="_blank" rel="noopener">Plugin Example</a>
     <a href="https://github.com/mail2acssh-code/waiv/issues" target="_blank" rel="noopener">Report a Bug</a>
-    <a href="https://github.com/mail2acssh-code/waiv/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+    <button class="theme-btn" id="themeBtnFooter" aria-label="Toggle theme" style="margin-left:4px">
+      <svg class="t-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="t-sun"  width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </button>
   </div>
 </footer>
 
 <script>
-  // ── Theme toggle ──────────────────────────────────────────
-  const html = document.documentElement;
-  const btn  = document.getElementById('themeBtn');
+/* ── THEME ── */
+const html = document.documentElement;
+function applyTheme(t) {
+  html.dataset.theme = t;
+  localStorage.setItem('waiv-theme', t);
+}
+const saved = localStorage.getItem('waiv-theme');
+applyTheme(saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+function toggleTheme() {
+  applyTheme(html.dataset.theme === 'dark' ? 'light' : 'dark');
+}
+document.getElementById('themeBtn').addEventListener('click', toggleTheme);
+document.getElementById('themeBtnFooter').addEventListener('click', toggleTheme);
 
-  // Initialise from localStorage, fall back to system preference
-  const saved      = localStorage.getItem('waiv-theme');
-  const preferDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  html.dataset.theme = saved || (preferDark ? 'dark' : 'light');
+/* ── HAND SKELETON DATA  (21 landmarks, normalised 0–1) ── */
+const POSES = {
+  open_palm: {
+    label: 'Play / Pause', icon: '✋',
+    lm: [
+      [0.50,0.88],[0.36,0.80],[0.22,0.71],[0.14,0.60],[0.08,0.49],
+      [0.42,0.65],[0.40,0.50],[0.38,0.37],[0.37,0.25],
+      [0.50,0.63],[0.50,0.47],[0.50,0.34],[0.50,0.21],
+      [0.59,0.64],[0.61,0.49],[0.63,0.37],[0.64,0.25],
+      [0.68,0.69],[0.72,0.57],[0.74,0.47],[0.76,0.36]
+    ]
+  },
+  thumbs_up: {
+    label: 'Volume Up', icon: '👍',
+    lm: [
+      [0.50,0.88],[0.38,0.76],[0.28,0.62],[0.22,0.48],[0.18,0.33],
+      [0.57,0.68],[0.62,0.74],[0.64,0.80],[0.60,0.85],
+      [0.61,0.67],[0.66,0.72],[0.68,0.77],[0.65,0.82],
+      [0.63,0.69],[0.67,0.74],[0.69,0.79],[0.66,0.84],
+      [0.65,0.73],[0.68,0.77],[0.69,0.81],[0.67,0.86]
+    ]
+  },
+  thumbs_down: {
+    label: 'Volume Down', icon: '👎',
+    lm: [
+      [0.50,0.18],[0.38,0.28],[0.28,0.42],[0.22,0.56],[0.18,0.70],
+      [0.57,0.36],[0.62,0.30],[0.64,0.24],[0.60,0.19],
+      [0.61,0.37],[0.66,0.32],[0.68,0.27],[0.65,0.22],
+      [0.63,0.38],[0.67,0.33],[0.69,0.28],[0.66,0.23],
+      [0.65,0.40],[0.68,0.36],[0.69,0.32],[0.67,0.28]
+    ]
+  },
+  thumb_right: {
+    label: 'Next Track', icon: '👉',
+    lm: [
+      [0.16,0.55],[0.26,0.44],[0.38,0.38],[0.52,0.36],[0.67,0.34],
+      [0.28,0.40],[0.28,0.32],[0.30,0.26],[0.34,0.22],
+      [0.30,0.50],[0.30,0.43],[0.32,0.37],[0.34,0.32],
+      [0.32,0.60],[0.32,0.53],[0.34,0.47],[0.36,0.42],
+      [0.34,0.69],[0.34,0.63],[0.35,0.58],[0.36,0.54]
+    ]
+  },
+  thumb_left: {
+    label: 'Previous Track', icon: '👈',
+    lm: [
+      [0.84,0.55],[0.74,0.44],[0.62,0.38],[0.48,0.36],[0.33,0.34],
+      [0.72,0.40],[0.72,0.32],[0.70,0.26],[0.66,0.22],
+      [0.70,0.50],[0.70,0.43],[0.68,0.37],[0.66,0.32],
+      [0.68,0.60],[0.68,0.53],[0.66,0.47],[0.64,0.42],
+      [0.66,0.69],[0.66,0.63],[0.65,0.58],[0.64,0.54]
+    ]
+  },
+  index_up: {
+    label: 'Toggle Mic', icon: '☝️',
+    lm: [
+      [0.50,0.88],[0.38,0.80],[0.30,0.72],[0.24,0.63],[0.20,0.54],
+      [0.44,0.67],[0.42,0.52],[0.41,0.39],[0.40,0.26],
+      [0.53,0.66],[0.56,0.72],[0.57,0.77],[0.55,0.82],
+      [0.60,0.67],[0.62,0.72],[0.63,0.77],[0.61,0.82],
+      [0.66,0.70],[0.68,0.74],[0.69,0.79],[0.68,0.83]
+    ]
+  },
+  middle_finger: {
+    label: 'Lock Screen', icon: '🖕',
+    lm: [
+      [0.50,0.88],[0.38,0.80],[0.30,0.72],[0.24,0.63],[0.20,0.54],
+      [0.45,0.67],[0.47,0.73],[0.49,0.78],[0.47,0.83],
+      [0.51,0.65],[0.51,0.50],[0.51,0.37],[0.51,0.23],
+      [0.58,0.66],[0.60,0.72],[0.62,0.77],[0.60,0.82],
+      [0.65,0.70],[0.67,0.74],[0.68,0.79],[0.67,0.83]
+    ]
+  },
+  pinky_up: {
+    label: 'Quit Waiv', icon: '🤙',
+    lm: [
+      [0.50,0.88],[0.38,0.80],[0.30,0.72],[0.24,0.63],[0.20,0.54],
+      [0.46,0.67],[0.48,0.73],[0.50,0.78],[0.48,0.83],
+      [0.53,0.66],[0.56,0.71],[0.58,0.76],[0.56,0.81],
+      [0.60,0.66],[0.62,0.71],[0.64,0.76],[0.62,0.81],
+      [0.67,0.67],[0.71,0.54],[0.73,0.42],[0.75,0.30]
+    ]
+  }
+};
 
-  btn.addEventListener('click', () => {
-    const next = html.dataset.theme === 'dark' ? 'light' : 'dark';
-    html.dataset.theme = next;
-    localStorage.setItem('waiv-theme', next);
+const CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],
+  [0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],
+  [0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],
+  [5,9],[9,13],[13,17]
+];
+
+/* ── CANVAS SETUP ── */
+const camInner  = document.getElementById('camInner');
+const handCanvas = document.getElementById('handCanvas');
+const ringCanvas = document.getElementById('ringCanvas');
+const hCtx = handCanvas.getContext('2d');
+const rCtx = ringCanvas.getContext('2d');
+
+function resize() {
+  const r = camInner.getBoundingClientRect();
+  const chrome = 36;
+  handCanvas.width  = r.width;
+  handCanvas.height = r.height - chrome;
+  handCanvas.style.marginTop = chrome + 'px';
+  ringCanvas.width  = r.width;
+  ringCanvas.height = r.height;
+}
+resize();
+window.addEventListener('resize', () => { resize(); drawHand(currentPose, 1); });
+
+/* ── DRAWING (white/grey palette) ── */
+function lmToCanvas(lm, canvas) {
+  return lm.map(([x, y]) => [x * canvas.width, y * canvas.height]);
+}
+
+function _drawPose(pose, alpha, ctx, canvas) {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = `rgba(8,8,8,${alpha})`;
+  ctx.fillRect(0, 0, w, h);
+
+  const pts = lmToCanvas(pose.lm, canvas);
+
+  // connections
+  ctx.strokeStyle = `rgba(255,255,255,${0.15 * alpha})`;
+  ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+  for (const [a, b] of CONNECTIONS) {
+    ctx.beginPath();
+    ctx.moveTo(pts[a][0], pts[a][1]);
+    ctx.lineTo(pts[b][0], pts[b][1]);
+    ctx.stroke();
+  }
+
+  // dots
+  for (let i = 0; i < pts.length; i++) {
+    const [x, y] = pts[i];
+    const isTip   = [4,8,12,16,20].includes(i);
+    const isWrist = i === 0;
+    const r = isWrist ? 5 : isTip ? 5 : 3.5;
+
+    if (isTip) {
+      ctx.beginPath();
+      ctx.arc(x, y, r + 5, 0, Math.PI * 2);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r + 5);
+      g.addColorStop(0, `rgba(255,255,255,${0.25 * alpha})`);
+      g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g; ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = isTip
+      ? `rgba(255,255,255,${alpha})`
+      : isWrist
+        ? `rgba(200,200,200,${0.85 * alpha})`
+        : `rgba(160,160,160,${0.65 * alpha})`;
+    ctx.fill();
+  }
+}
+
+function drawHand(poseName, alpha) {
+  _drawPose(POSES[poseName], alpha, hCtx, handCanvas);
+}
+
+function drawHandDirect(pose, alpha) {
+  _drawPose(pose, alpha, hCtx, handCanvas);
+}
+
+/* ── PROGRESS RING ── */
+function drawRing(progress, poseName) {
+  const w = ringCanvas.width, h = ringCanvas.height;
+  rCtx.clearRect(0, 0, w, h);
+  if (progress <= 0) return;
+
+  const chrome = 36;
+  const pose = POSES[poseName];
+  const wx = pose.lm[0][0] * handCanvas.width;
+  const wy = pose.lm[0][1] * handCanvas.height + chrome;
+  const R = 18;
+
+  rCtx.beginPath();
+  rCtx.arc(wx, wy, R, 0, Math.PI * 2);
+  rCtx.strokeStyle = 'rgba(255,255,255,0.1)';
+  rCtx.lineWidth = 2.5; rCtx.stroke();
+
+  const start = -Math.PI / 2;
+  const end   = start + Math.PI * 2 * progress;
+  rCtx.beginPath();
+  rCtx.arc(wx, wy, R, start, end);
+  rCtx.strokeStyle = 'rgba(255,255,255,0.9)';
+  rCtx.lineWidth = 2.5; rCtx.lineCap = 'round';
+  rCtx.shadowColor = 'rgba(255,255,255,0.4)';
+  rCtx.shadowBlur = 10;
+  rCtx.stroke();
+  rCtx.shadowBlur = 0;
+}
+
+/* ── INTERPOLATION ── */
+function lerp(a, b, t) { return a + (b - a) * t; }
+function easeInOut(t)   { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; }
+function lerpPose(fromP, toP, t) {
+  return fromP.lm.map((pt, i) => [
+    lerp(pt[0], toP.lm[i][0], t),
+    lerp(pt[1], toP.lm[i][1], t)
+  ]);
+}
+
+let currentPose  = 'open_palm';
+let fromPose     = 'open_palm';
+let toPose       = 'open_palm';
+let morphT       = 1;
+let morphing     = false;
+let holdProgress = 0;
+let holdTimer    = null;
+let autoTimer    = null;
+let autoRunning  = true;
+
+const AUTO_SEQUENCE = ['open_palm','thumbs_up','thumb_right','index_up','thumbs_down','thumb_left','middle_finger','pinky_up'];
+let autoIdx = 0;
+
+function morphTo(targetPose) {
+  if (targetPose === currentPose && morphT >= 1) return;
+  fromPose    = currentPose;
+  toPose      = targetPose;
+  morphT      = 0;
+  morphing    = true;
+  currentPose = targetPose;
+  document.querySelectorAll('.gpick').forEach(b => {
+    b.classList.toggle('active', b.dataset.gesture === targetPose);
   });
+}
+
+/* ── HUD ── */
+const hudPill  = document.getElementById('hudPill');
+const hudIcon  = document.getElementById('hudIcon');
+const hudLabel = document.getElementById('hudLabel');
+let hudTimeout = null;
+
+function fireHud(poseName) {
+  const pose = POSES[poseName];
+  hudIcon.textContent  = pose.icon;
+  hudLabel.textContent = pose.label;
+  hudPill.classList.add('visible');
+  clearTimeout(hudTimeout);
+  hudTimeout = setTimeout(() => hudPill.classList.remove('visible'), 2000);
+}
+
+/* ── HOLD ANIMATION ── */
+function startHold(poseName) {
+  clearTimeout(holdTimer);
+  holdProgress = 0;
+  const HOLD_MS = 1400, FPS = 60;
+  const step = 1 / (HOLD_MS / (1000 / FPS));
+  function tick() {
+    holdProgress = Math.min(1, holdProgress + step);
+    drawRing(holdProgress, poseName);
+    if (holdProgress < 1) {
+      holdTimer = setTimeout(tick, 1000 / FPS);
+    } else {
+      setTimeout(() => {
+        drawRing(0, poseName);
+        holdProgress = 0;
+        fireHud(poseName);
+      }, 100);
+    }
+  }
+  tick();
+}
+
+/* ── RENDER LOOP ── */
+let lastTime = 0;
+function render(ts) {
+  requestAnimationFrame(render);
+  const dt = (ts - lastTime) / 1000;
+  lastTime = ts;
+  if (morphing) {
+    morphT = Math.min(1, morphT + dt * 3.5);
+    const interpLm = lerpPose(POSES[fromPose], POSES[toPose], easeInOut(morphT));
+    drawHandDirect({ ...POSES[toPose], lm: interpLm }, 1);
+    if (morphT >= 1) morphing = false;
+  } else {
+    drawHand(currentPose, 1);
+  }
+}
+requestAnimationFrame(render);
+
+/* ── AUTO-CYCLE ── */
+function nextAuto() {
+  if (!autoRunning) return;
+  autoIdx = (autoIdx + 1) % AUTO_SEQUENCE.length;
+  const next = AUTO_SEQUENCE[autoIdx];
+  morphTo(next);
+  setTimeout(() => { if (autoRunning) startHold(next); }, 600);
+  autoTimer = setTimeout(nextAuto, 3800);
+}
+autoTimer = setTimeout(nextAuto, 2400);
+
+/* ── PICKER INTERACTION ── */
+document.getElementById('gesturePicker').addEventListener('click', e => {
+  const btn = e.target.closest('.gpick');
+  if (!btn) return;
+  autoRunning = false;
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(() => { autoRunning = true; nextAuto(); }, 8000);
+  const g = btn.dataset.gesture;
+  morphTo(g);
+  clearTimeout(holdTimer);
+  holdProgress = 0;
+  setTimeout(() => startHold(g), 500);
+});
 </script>
 </body>
 </html>
