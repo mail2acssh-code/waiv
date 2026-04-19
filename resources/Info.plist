@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Waiv</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>Waiv</string>
+
+    <key>CFBundleIdentifier</key>
+    <string>com.waiv.gesture</string>
+
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+
+    <key>CFBundleExecutable</key>
+    <string>Waiv</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <!-- Hide from Dock and App Switcher -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- Camera permission -->
+    <key>NSCameraUsageDescription</key>
+    <string>Waiv uses the camera to detect hand gestures for controlling media playback and volume.</string>
+
+    <!-- Apple Events (for Spotify / System Events control) -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Waiv uses Apple Events to control Spotify and system volume.</string>
+
+    <!-- Accessibility (for sending media keys to browsers) -->
+    <key>NSAccessibilityUsageDescription</key>
+    <string>Waiv needs Accessibility access to send media key events to apps like Chrome and Safari.</string>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+</dict>
+</plist>

@@ -1,0 +1,5 @@
+mediapipe>=0.10
+opencv-python>=4.8
+rumps>=0.4
+pyobjc-framework-Cocoa>=10.0
+numpy>=1.24

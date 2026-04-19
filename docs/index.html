@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Waiv — Gesture Control for Mac</title>
+  <meta name="description" content="Control your Mac with hand gestures. Play, pause, skip, mute — just wave. Free, open source, runs entirely on-device." />
+  <meta property="og:type"        content="website" />
+  <meta property="og:title"       content="Waiv — Gesture Control for Mac" />
+  <meta property="og:description" content="Control your Mac with hand gestures. Free, open source, runs entirely on-device." />
+  <meta property="og:url"         content="https://mail2acssh-code.github.io/waiv" />
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:title"       content="Waiv — Gesture Control for Mac" />
+  <meta name="twitter:description" content="Control your Mac with hand gestures. Free &amp; open source." />
+
+  <style>
+    /* ════════════════════════════════════════
+       TOKENS — light (default)
+    ════════════════════════════════════════ */
+    :root {
+      --bg:         #ffffff;
+      --surface:    #f5f5f7;
+      --card:       #ffffff;
+      --border:     rgba(0,0,0,0.08);
+      --accent:     #6655e8;
+      --accent-h:   #7b6cf0;
+      --text:       #1d1d1f;
+      --muted:      #86868b;
+      --r:          14px;
+
+      /* orbs */
+      --orb1: rgba(120, 100, 240, 0.55);
+      --orb2: rgba(80,  140, 250, 0.50);
+      --orb3: rgba(200, 100, 240, 0.45);
+      --orb4: rgba( 52, 210, 180, 0.40);
+
+      /* glass */
+      --glass-bg:     rgba(255,255,255,0.55);
+      --glass-border: rgba(255,255,255,0.75);
+      --glass-shadow: rgba(0,0,0,0.10);
+
+      /* bg emoji opacity */
+      --bg-emoji-op: 0.08;
+    }
+
+    /* ════════════════════════════════════════
+       TOKENS — dark
+    ════════════════════════════════════════ */
+    [data-theme="dark"] {
+      --bg:         #08080f;
+      --surface:    #10101a;
+      --card:       #13131e;
+      --border:     rgba(255,255,255,0.07);
+      --accent:     #7b6cf0;
+      --accent-h:   #9d8fff;
+      --text:       #ededf5;
+      --muted:      #72728a;
+
+      --orb1: rgba(140, 110, 255, 0.65);
+      --orb2: rgba( 80, 140, 255, 0.60);
+      --orb3: rgba(210, 100, 255, 0.55);
+      --orb4: rgba( 40, 220, 190, 0.45);
+
+      --glass-bg:     rgba(10,10,22,0.55);
+      --glass-border: rgba(255,255,255,0.10);
+      --glass-shadow: rgba(0,0,0,0.40);
+
+      --bg-emoji-op: 0.07;
+    }
+
+    /* ════════════════════════════════════════
+       BASE
+    ════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.6;
+      overflow-x: hidden;
+      transition: background 0.35s, color 0.35s;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ════════════════════════════════════════
+       NAV
+    ════════════════════════════════════════ */
+    nav {
+      position: sticky; top: 0; z-index: 300;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; height: 60px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.35s, border-color 0.35s;
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 9px;
+      font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em;
+      color: var(--text); transition: color 0.35s;
+    }
+    .nav-brand .hand { font-size: 1.25rem; }
+    .nav-right { display: flex; align-items: center; gap: 6px; }
+    .nav-links { display: flex; align-items: center; gap: 2px; }
+    .nav-links a {
+      color: var(--muted); font-size: 0.9rem; padding: 6px 12px;
+      border-radius: 8px; transition: color .15s, background .15s;
+    }
+    .nav-links a:hover { color: var(--text); background: rgba(128,128,128,0.1); text-decoration: none; }
+
+    /* GitHub button */
+    .btn-nav {
+      display: flex; align-items: center; gap: 7px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 6px 14px;
+      color: var(--text) !important; font-size: 0.88rem;
+      transition: border-color .2s, background .2s;
+      margin-left: 6px;
+    }
+    .btn-nav:hover { border-color: var(--accent); text-decoration: none !important; }
+
+    /* Theme toggle */
+    .theme-btn {
+      width: 36px; height: 36px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--surface);
+      cursor: pointer; color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color .2s, background .2s, color .2s;
+      flex-shrink: 0; margin-left: 4px;
+    }
+    .theme-btn:hover { border-color: var(--accent); color: var(--text); }
+    /* show sun in dark, moon in light */
+    .t-moon { display: block; }
+    .t-sun  { display: none;  }
+    [data-theme="dark"] .t-moon { display: none;  }
+    [data-theme="dark"] .t-sun  { display: block; }
+
+    /* ════════════════════════════════════════
+       HERO
+    ════════════════════════════════════════ */
+    .hero {
+      position: relative;
+      padding: 80px 24px 100px;
+      display: flex; flex-direction: column; align-items: center;
+      overflow: hidden;
+      /* gradient wash behind orbs */
+      background: var(--bg);
+      transition: background 0.35s;
+    }
+
+    /* ── Floating background orbs ── */
+    .hero-orbs {
+      position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    }
+    .orb {
+      position: absolute; border-radius: 50%;
+      filter: blur(72px);
+      animation: orb-drift 12s ease-in-out infinite;
+    }
+    .orb-1 {
+      width: 520px; height: 520px;
+      background: var(--orb1);
+      top: -160px; right: -100px;
+      animation-duration: 14s;
+    }
+    .orb-2 {
+      width: 440px; height: 440px;
+      background: var(--orb2);
+      bottom: -140px; left: -80px;
+      animation-duration: 16s; animation-delay: -4s;
+    }
+    .orb-3 {
+      width: 320px; height: 320px;
+      background: var(--orb3);
+      top: 30%; left: 8%;
+      animation-duration: 11s; animation-delay: -7s;
+    }
+    .orb-4 {
+      width: 220px; height: 220px;
+      background: var(--orb4);
+      bottom: 10%; right: 12%;
+      animation-duration: 13s; animation-delay: -2s;
+    }
+    @keyframes orb-drift {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33%       { transform: translate(30px, -24px) scale(1.04); }
+      66%       { transform: translate(-18px, 20px) scale(0.97); }
+    }
+
+    /* ── Floating background emojis ── */
+    .bg-emoji {
+      position: absolute; pointer-events: none;
+      opacity: var(--bg-emoji-op);
+      font-size: 160px; line-height: 1;
+      animation: emoji-float 10s ease-in-out infinite;
+      z-index: 0;
+      user-select: none;
+    }
+    .bg-e1 { bottom: -10px; right:  4%; font-size: 220px; animation-duration: 12s; }
+    .bg-e2 { top:    30px;  left:   3%; font-size: 140px; animation-duration: 9s; animation-delay: -3s; }
+    .bg-e3 { bottom: 30px;  left:  20%; font-size: 110px; animation-duration: 14s; animation-delay: -6s; }
+    .bg-e4 { top:    20%;   right: 18%; font-size: 100px; animation-duration: 11s; animation-delay: -1s; }
+    @keyframes emoji-float {
+      0%, 100% { transform: translateY(0) rotate(-4deg); }
+      50%       { transform: translateY(-16px) rotate(4deg); }
+    }
+
+    /* ── Frosted glass card ── */
+    .hero-glass {
+      position: relative; z-index: 2;
+      width: 100%; max-width: 620px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(48px) saturate(200%);
+      -webkit-backdrop-filter: blur(48px) saturate(200%);
+      border: 1px solid var(--glass-border);
+      border-radius: 28px;
+      padding: 52px 48px 44px;
+      text-align: center;
+      box-shadow:
+        0 2px 0 0 var(--glass-border) inset,
+        0 24px 64px var(--glass-shadow),
+        0 2px 12px rgba(0,0,0,0.06);
+      transition: background 0.35s, border-color 0.35s, box-shadow 0.35s;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: rgba(102,85,232,0.10); border: 1px solid rgba(102,85,232,0.22);
+      color: var(--accent); border-radius: 20px;
+      padding: 5px 14px; font-size: 0.76rem;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+    .hero-glass h1 {
+      font-size: clamp(2.6rem, 6vw, 4.2rem);
+      font-weight: 800; letter-spacing: -0.045em; line-height: 1.08;
+      margin-bottom: 20px;
+      background: linear-gradient(155deg, var(--text) 20%, var(--accent));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 1.1rem; color: var(--muted); line-height: 1.75;
+      margin-bottom: 40px;
+    }
+    .hero-buttons {
+      display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 9px;
+      background: var(--accent); color: #fff;
+      padding: 13px 26px; border-radius: 12px;
+      font-size: 0.96rem; font-weight: 600;
+      transition: background .2s, transform .15s, box-shadow .2s;
+      text-decoration: none !important;
+    }
+    .btn-primary:hover {
+      background: var(--accent-h); transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(102,85,232,0.30);
+    }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 9px;
+      background: rgba(128,128,128,0.12); border: 1px solid var(--border);
+      color: var(--text); padding: 13px 26px; border-radius: 12px;
+      font-size: 0.96rem; font-weight: 500;
+      transition: border-color .2s, transform .15s, background .2s;
+      text-decoration: none !important;
+    }
+    .btn-secondary:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .hero-note { font-size: 0.78rem; color: var(--muted); }
+    .hero-note span { margin: 0 5px; opacity: 0.35; }
+
+    /* ── HUD demo (below glass, still inside hero) ── */
+    .hud-demo {
+      position: relative; z-index: 2;
+      width: 100%; max-width: 480px;
+      height: 180px; margin-top: 32px;
+    }
+    .hud-screen {
+      width: 100%; height: 100%;
+      background: var(--glass-bg);
+      backdrop-filter: blur(48px) saturate(200%);
+      -webkit-backdrop-filter: blur(48px) saturate(200%);
+      border: 1px solid var(--glass-border);
+      border-radius: 18px; overflow: hidden;
+      position: relative;
+      box-shadow: 0 20px 56px var(--glass-shadow), 0 2px 8px rgba(0,0,0,0.06);
+      transition: background 0.35s, border-color 0.35s;
+    }
+    .hud-menubar {
+      height: 24px;
+      background: rgba(128,128,128,0.08);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: flex-end;
+      padding: 0 14px; gap: 10px;
+      transition: border-color 0.35s;
+    }
+    .hud-menubar-txt  { font-size: 0.68rem; color: var(--muted); }
+    .hud-menubar-icon { font-size: 0.82rem; }
+    .hud-content {
+      display: flex; align-items: center; justify-content: center;
+      height: calc(100% - 24px);
+      font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--muted); opacity: 0.4;
+    }
+    /* the floating HUD tile */
+    .hud-tile {
+      position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+      width: 88px; height: 88px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 5px;
+      box-shadow: 0 8px 28px var(--glass-shadow);
+      animation: hud-float 3s ease-in-out infinite;
+      transition: background 0.35s, border-color 0.35s;
+    }
+    .hud-tile::before {
+      content: ""; position: absolute; inset: -7px; border-radius: 28px;
+      border: 1px solid rgba(102,85,232,0.3);
+      animation: hud-ring 3s ease-in-out infinite;
+    }
+    .hud-tile-icon  { font-size: 2rem; line-height: 1; }
+    .hud-tile-label { font-size: 0.62rem; font-weight: 600; color: var(--muted); }
+    @keyframes hud-float {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50%       { transform: translateX(-50%) translateY(-6px); }
+    }
+    @keyframes hud-ring {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50%       { opacity: 0;   transform: scale(1.14); }
+    }
+
+    /* ════════════════════════════════════════
+       SECTIONS (shared)
+    ════════════════════════════════════════ */
+    section { padding: 88px 24px; transition: background 0.35s; }
+    .inner { max-width: 960px; margin: 0 auto; }
+    .surface-section {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.35s, border-color 0.35s;
+    }
+    .label {
+      text-align: center; font-size: 0.74rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 12px;
+    }
+    .sec-h2 {
+      text-align: center;
+      font-size: clamp(1.9rem, 4vw, 2.8rem);
+      font-weight: 700; letter-spacing: -0.035em;
+      margin-bottom: 14px; line-height: 1.2;
+      transition: color 0.35s;
+    }
+    .sec-sub {
+      text-align: center; color: var(--muted);
+      max-width: 460px; margin: 0 auto 52px;
+      font-size: 1rem; line-height: 1.7;
+      transition: color 0.35s;
+    }
+
+    /* ════════════════════════════════════════
+       HOW IT WORKS
+    ════════════════════════════════════════ */
+    .steps {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      max-width: 760px; margin: 0 auto; position: relative;
+    }
+    .steps::before {
+      content: ""; position: absolute;
+      top: 27px; left: calc(16.66% + 8px); right: calc(16.66% + 8px);
+      height: 1px;
+      background: linear-gradient(90deg, var(--accent) 0%, transparent 100%);
+      opacity: 0.2;
+    }
+    .step { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0 20px; }
+    .step-circle {
+      width: 54px; height: 54px; border-radius: 50%;
+      background: rgba(102,85,232,0.08); border: 1px solid rgba(102,85,232,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; margin-bottom: 18px; position: relative; z-index: 1;
+    }
+    .step h3 { font-size: 0.93rem; font-weight: 600; margin-bottom: 6px; }
+    .step p  { font-size: 0.84rem; color: var(--muted); line-height: 1.65; }
+
+    /* ════════════════════════════════════════
+       FEATURE CARDS
+    ════════════════════════════════════════ */
+    .feat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+    .feat-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 28px 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      transition: border-color .2s, transform .2s, box-shadow .2s, background 0.35s;
+    }
+    .feat-card:hover { border-color: rgba(102,85,232,0.3); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+    .feat-icon { font-size: 1.8rem; margin-bottom: 14px; }
+    .feat-card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 8px; }
+    .feat-card p  { color: var(--muted); font-size: 0.9rem; line-height: 1.65; }
+
+    /* ════════════════════════════════════════
+       GESTURE CARDS
+    ════════════════════════════════════════ */
+    .gesture-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+    .gesture-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 16px 14px;
+      display: flex; align-items: center; gap: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      transition: border-color .2s, transform .2s, box-shadow .2s, background 0.35s;
+    }
+    .gesture-card:hover { border-color: rgba(102,85,232,0.3); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+    .g-emoji { font-size: 1.9rem; width: 40px; text-align: center; flex-shrink: 0; }
+    .g-info h4 { font-size: 0.87rem; font-weight: 600; margin-bottom: 2px; }
+    .g-info p  { font-size: 0.8rem; color: var(--muted); }
+
+    /* ════════════════════════════════════════
+       PLUGIN SECTION
+    ════════════════════════════════════════ */
+    .plugin-layout {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 56px; align-items: center; max-width: 900px; margin: 0 auto;
+    }
+    .plugin-text .label { text-align: left; }
+    .plugin-text h2 {
+      font-size: clamp(1.7rem, 3.5vw, 2.4rem);
+      font-weight: 700; letter-spacing: -0.03em;
+      margin-bottom: 16px; line-height: 1.25;
+    }
+    .plugin-text p { color: var(--muted); font-size: 0.95rem; line-height: 1.7; margin-bottom: 24px; }
+    .plugin-bullets { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .plugin-bullets li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.9rem; color: var(--muted); }
+    .plugin-bullets li::before { content: "✦"; color: var(--accent); font-size: 0.65rem; margin-top: 5px; flex-shrink: 0; }
+
+    pre.code-block {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px 22px;
+      font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+      font-size: 0.82rem; line-height: 1.9;
+      overflow-x: auto;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      transition: background 0.35s, border-color 0.35s;
+    }
+    /* light syntax */
+    pre.code-block { color: #2d2d3a; }
+    .tok-comment { color: #a0a0b8; }
+    .tok-keyword { color: #6655e8; }
+    .tok-string  { color: #2e9e6e; }
+    .tok-fn      { color: #2878c8; }
+    .tok-name    { color: #c07820; }
+    /* dark syntax overrides */
+    [data-theme="dark"] pre.code-block { color: #c5c5e0; }
+    [data-theme="dark"] .tok-comment   { color: #555570; }
+    [data-theme="dark"] .tok-keyword   { color: #9d8fff; }
+    [data-theme="dark"] .tok-string    { color: #7ec8a0; }
+    [data-theme="dark"] .tok-fn        { color: #7ab8f5; }
+    [data-theme="dark"] .tok-name      { color: #e8c97a; }
+
+    /* ════════════════════════════════════════
+       DEV INSTALL
+    ════════════════════════════════════════ */
+    .dev-install { max-width: 620px; margin: 0 auto; }
+    .dev-steps { display: grid; grid-template-columns: repeat(3,1fr); margin-bottom: 44px; }
+    .dev-step { text-align: center; padding: 0 16px; }
+    .dev-num {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(102,85,232,0.08); border: 1px solid rgba(102,85,232,0.2);
+      color: var(--accent); font-size: 0.85rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;
+    }
+    .dev-step h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
+    .dev-step p  { font-size: 0.82rem; color: var(--muted); }
+
+    pre.terminal {
+      background: #111118; border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px; padding: 22px 22px;
+      font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+      font-size: 0.85rem; color: #c8c8e0; line-height: 1.9;
+      overflow-x: auto;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    }
+    pre.terminal .c { color: #44446a; }
+    pre.terminal .p { color: var(--accent-h); user-select: none; }
+    pre.terminal::before {
+      content: "● ● ●"; display: block;
+      color: rgba(255,255,255,0.15); letter-spacing: 5px;
+      font-size: 0.58rem; margin-bottom: 16px;
+    }
+
+    /* ════════════════════════════════════════
+       FOOTER
+    ════════════════════════════════════════ */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 36px 48px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 16px;
+      transition: border-color 0.35s;
+    }
+    .footer-brand { font-size: 0.9rem; color: var(--muted); }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a { color: var(--muted); font-size: 0.88rem; transition: color .2s; }
+    .footer-links a:hover { color: var(--text); text-decoration: none; }
+
+    /* inline code */
+    code {
+      font-family: "SF Mono", "Cascadia Code", monospace;
+      font-size: 0.85em;
+      background: var(--surface); border: 1px solid var(--border);
+      padding: 1px 6px; border-radius: 5px;
+      transition: background 0.35s;
+    }
+
+    /* ════════════════════════════════════════
+       RESPONSIVE
+    ════════════════════════════════════════ */
+    @media (max-width: 768px) {
+      nav { padding: 0 20px; }
+      .nav-links a:not(.btn-nav) { display: none; }
+      .plugin-layout { grid-template-columns: 1fr; gap: 32px; }
+      .steps, .dev-steps { grid-template-columns: 1fr; gap: 28px; }
+      .steps::before { display: none; }
+      footer { padding: 28px 20px; flex-direction: column; align-items: flex-start; }
+      .hero-glass { padding: 36px 24px 32px; }
+    }
+    @media (max-width: 480px) {
+      section { padding: 64px 20px; }
+      .hud-demo { height: 150px; }
+      .orb-1 { width: 300px; height: 300px; }
+      .orb-2 { width: 260px; height: 260px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════ NAV ══════════════════════ -->
+<nav>
+  <div class="nav-brand"><span class="hand">✋</span> Waiv</div>
+  <div class="nav-right">
+    <div class="nav-links">
+      <a href="#gestures">Gestures</a>
+      <a href="#plugins">Plugins</a>
+      <a href="#install">Developers</a>
+    </div>
+    <!-- Theme toggle -->
+    <button class="theme-btn" id="themeBtn" aria-label="Toggle light / dark mode">
+      <!-- moon: shown in light mode -->
+      <svg class="t-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+      <!-- sun: shown in dark mode -->
+      <svg class="t-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1"  x2="12" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22"  y1="4.22"  x2="5.64"  y2="5.64"/>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1"  y1="12" x2="3"  y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22"  y1="19.78" x2="5.64"  y2="18.36"/>
+        <line x1="18.36" y1="5.64"  x2="19.78" y2="4.22"/>
+      </svg>
+    </button>
+    <!-- GitHub -->
+    <a href="https://github.com/mail2acssh-code/waiv" class="btn-nav" target="_blank" rel="noopener">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+      </svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- ══════════════════════ HERO ══════════════════════ -->
+<section class="hero">
+
+  <!-- floating orbs (behind glass) -->
+  <div class="hero-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="orb orb-4"></div>
+    <!-- intentional floating emoji elements, blurred through glass -->
+    <span class="bg-emoji bg-e1">✋</span>
+    <span class="bg-emoji bg-e2">👍</span>
+    <span class="bg-emoji bg-e3">🎵</span>
+    <span class="bg-emoji bg-e4">👈</span>
+  </div>
+
+  <!-- frosted glass card -->
+  <div class="hero-glass">
+    <div class="hero-badge">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Free &amp; Open Source · macOS
+    </div>
+    <h1>Wave at your Mac.<br>It listens.</h1>
+    <p class="hero-sub">Waiv uses your webcam to detect hand gestures and control media, volume, and more — no clicks, no shortcuts, no cloud.</p>
+    <div class="hero-buttons">
+      <!-- Replace with your GitHub Releases DMG URL -->
+      <a href="https://github.com/mail2acssh-code/waiv/releases/latest/download/Waiv.dmg" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download for Mac
+      </a>
+      <a href="https://github.com/mail2acssh-code/waiv" class="btn-secondary" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
+        </svg>
+        View on GitHub
+      </a>
+    </div>
+    <p class="hero-note">
+      macOS 12 Monterey or later <span>·</span> Requires webcam <span>·</span> Free forever
+    </p>
+  </div>
+
+  <!-- HUD preview — also sits over the blurred orb background -->
+  <div class="hud-demo">
+    <div class="hud-screen">
+      <div class="hud-menubar">
+        <span class="hud-menubar-txt">Tue 14:32</span>
+        <span class="hud-menubar-icon">✋</span>
+        <span class="hud-menubar-icon">🔋</span>
+      </div>
+      <div class="hud-content">Desktop</div>
+    </div>
+    <div class="hud-tile">
+      <div class="hud-tile-icon">▶︎⏸</div>
+      <div class="hud-tile-label">Play / Pause</div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ══════════════════════ HOW IT WORKS ══════════════════════ -->
+<section class="surface-section">
+  <div class="inner">
+    <div class="label">How it works</div>
+    <h2 class="sec-h2">Three steps, zero friction.</h2>
+    <p class="sec-sub">All gesture detection runs locally using MediaPipe. Nothing leaves your machine.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-circle">📷</div>
+        <h3>Camera reads your hand</h3>
+        <p>MediaPipe tracks 21 hand landmarks in real time using pure geometry — no ML API, no network calls.</p>
+      </div>
+      <div class="step">
+        <div class="step-circle">✋</div>
+        <h3>Gesture is recognised</h3>
+        <p>Hold any gesture steady for 2 seconds. Waiv debounces false positives so accidental triggers don't happen.</p>
+      </div>
+      <div class="step">
+        <div class="step-circle">⚡</div>
+        <h3>Action fires instantly</h3>
+        <p>A frosted-glass HUD confirms what fired. Volume, playback, mic, lock screen — or your own plugin.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ FEATURES ══════════════════════ -->
+<section>
+  <div class="inner">
+    <div class="label">Why Waiv</div>
+    <h2 class="sec-h2">Lightweight. Private. Extensible.</h2>
+    <p class="sec-sub">Built to stay out of your way until you need it.</p>
+    <div class="feat-grid">
+      <div class="feat-card">
+        <div class="feat-icon">🔒</div>
+        <h3>100% On-Device</h3>
+        <p>Your camera feed is processed entirely on your Mac. No account, no subscription, no network requests — ever.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🪶</div>
+        <h3>Featherlight</h3>
+        <p>Lives in the menu bar, starts at login, and sleeps when no media is playing. Near-zero CPU when idle.</p>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">🔌</div>
+        <h3>Plugin System</h3>
+        <p>Drop a single Python file into <code>plugins/</code> to add gesture controls for any app — Zoom, Figma, Slack, whatever.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ GESTURES ══════════════════════ -->
+<section class="surface-section" id="gestures">
+  <div class="inner">
+    <div class="label">Built-in Gestures</div>
+    <h2 class="sec-h2">Eight gestures. Hold 2 s to fire.</h2>
+    <p class="sec-sub">Works with Spotify, Apple Music, YouTube, Netflix, and any app with a media session.</p>
+    <div class="gesture-grid">
+      <div class="gesture-card"><div class="g-emoji">👍</div><div class="g-info"><h4>Thumbs Up</h4><p>Volume Up</p></div></div>
+      <div class="gesture-card"><div class="g-emoji">👎</div><div class="g-info"><h4>Thumbs Down</h4><p>Volume Down</p></div></div>
+      <div class="gesture-card"><div class="g-emoji">✋</div><div class="g-info"><h4>Open Palm</h4><p>Play / Pause</p></div></div>
+      <div class="gesture-card"><div class="g-emoji">👉</div><div class="g-info"><h4>Thumb Right</h4><p>Next Track</p></div></div>
+      <div class="gesture-card"><div class="g-emoji">👈</div><div class="g-info"><h4>Thumb Left</h4><p>Previous Track</p></div></div>
+      <div class="gesture-card"><div class="g-emoji">🖕</div><div class="g-info"><h4>Middle Finger</h4><p>Lock Screen</p></div></div>
+      <div class="gesture-card"><div class="g-emoji">☝️</div><div class="g-info"><h4>Index Up</h4><p>Toggle Mic</p></div></div>
+      <div class="gesture-card"><div class="g-emoji">🤙</div><div class="g-info"><h4>Pinky Up</h4><p>Quit Waiv</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ PLUGINS ══════════════════════ -->
+<section id="plugins">
+  <div class="plugin-layout">
+    <div class="plugin-text">
+      <div class="label" style="text-align:left">Plugin System</div>
+      <h2>Add gestures for<br>any app.</h2>
+      <p>Drop a <code>.py</code> file into <code>plugins/</code>. Waiv auto-loads it at startup — no registration, no config.</p>
+      <ul class="plugin-bullets">
+        <li>Override any default gesture when your app is active</li>
+        <li>Falls back to defaults the moment your app quits</li>
+        <li>No core code changes — just drop the file and restart</li>
+      </ul>
+    </div>
+    <pre class="code-block"><span class="tok-comment"># plugins/zoom.py</span>
+<span class="tok-keyword">import</span> subprocess
+
+<span class="tok-keyword">def</span> <span class="tok-fn">is_active</span>():
+    <span class="tok-comment"># Only activates while Zoom is running</span>
+    r = subprocess.<span class="tok-fn">run</span>(
+        [<span class="tok-string">"osascript"</span>, <span class="tok-string">"-e"</span>,
+         <span class="tok-string">'(name of processes) contains "zoom.us"'</span>],
+        capture_output=<span class="tok-keyword">True</span>, text=<span class="tok-keyword">True</span>
+    )
+    <span class="tok-keyword">return</span> r.stdout.strip() == <span class="tok-string">"true"</span>
+
+<span class="tok-name">GESTURE_ACTIONS</span> = {
+    <span class="tok-string">"open_palm"</span>: toggle_video,  <span class="tok-comment"># ✋ camera on/off</span>
+    <span class="tok-string">"index_up"</span>:  toggle_mic,    <span class="tok-comment"># ☝️  mute/unmute</span>
+}</pre>
+  </div>
+</section>
+
+<!-- ══════════════════════ DEV INSTALL ══════════════════════ -->
+<section class="surface-section" id="install">
+  <div class="dev-install">
+    <div class="label">For Developers</div>
+    <h2 class="sec-h2">Up and running in 60 seconds.</h2>
+    <p class="sec-sub">Clone, install, done. Or build your own plugin and submit a PR.</p>
+    <div class="dev-steps">
+      <div class="dev-step">
+        <div class="dev-num">1</div>
+        <h4>Clone</h4>
+        <p>Git clone the repo and cd in.</p>
+      </div>
+      <div class="dev-step">
+        <div class="dev-num">2</div>
+        <h4>Install</h4>
+        <p>One script sets up venv, downloads the model, starts the agent.</p>
+      </div>
+      <div class="dev-step">
+        <div class="dev-num">3</div>
+        <h4>Extend</h4>
+        <p>Drop a plugin into <code>plugins/</code> to add your app.</p>
+      </div>
+    </div>
+    <pre class="terminal"><span class="c"># Clone the repo</span>
+<span class="p">$</span> git clone https://github.com/mail2acssh-code/waiv waiv
+<span class="p">$</span> cd waiv
+
+<span class="c"># Creates venv · downloads model · starts agent</span>
+<span class="p">$</span> bash install.sh</pre>
+  </div>
+</section>
+
+<!-- ══════════════════════ FOOTER ══════════════════════ -->
+<footer>
+  <div class="footer-brand">✋ Waiv — Open source gesture control for macOS</div>
+  <div class="footer-links">
+    <a href="https://github.com/mail2acssh-code/waiv" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/mail2acssh-code/waiv/blob/main/plugins/zoom.py" target="_blank" rel="noopener">Plugin Example</a>
+    <a href="https://github.com/mail2acssh-code/waiv/issues" target="_blank" rel="noopener">Report a Bug</a>
+    <a href="https://github.com/mail2acssh-code/waiv/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+  </div>
+</footer>
+
+<script>
+  // ── Theme toggle ──────────────────────────────────────────
+  const html = document.documentElement;
+  const btn  = document.getElementById('themeBtn');
+
+  // Initialise from localStorage, fall back to system preference
+  const saved      = localStorage.getItem('waiv-theme');
+  const preferDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  html.dataset.theme = saved || (preferDark ? 'dark' : 'light');
+
+  btn.addEventListener('click', () => {
+    const next = html.dataset.theme === 'dark' ? 'light' : 'dark';
+    html.dataset.theme = next;
+    localStorage.setItem('waiv-theme', next);
+  });
+</script>
+</body>
+</html>
