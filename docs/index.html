@@ -39,8 +39,6 @@
       --glass-border: rgba(255,255,255,0.75);
       --glass-shadow: rgba(0,0,0,0.10);
 
-      /* bg emoji opacity */
-      --bg-emoji-op: 0.08;
     }
 
     /* ════════════════════════════════════════
@@ -64,8 +62,6 @@
       --glass-bg:     rgba(10,10,22,0.55);
       --glass-border: rgba(255,255,255,0.10);
       --glass-shadow: rgba(0,0,0,0.40);
-
-      --bg-emoji-op: 0.07;
     }
 
     /* ════════════════════════════════════════
@@ -193,23 +189,6 @@
       66%       { transform: translate(-18px, 20px) scale(0.97); }
     }
 
-    /* ── Floating background emojis ── */
-    .bg-emoji {
-      position: absolute; pointer-events: none;
-      opacity: var(--bg-emoji-op);
-      font-size: 160px; line-height: 1;
-      animation: emoji-float 10s ease-in-out infinite;
-      z-index: 0;
-      user-select: none;
-    }
-    .bg-e1 { bottom: -10px; right:  4%; font-size: 220px; animation-duration: 12s; }
-    .bg-e2 { top:    30px;  left:   3%; font-size: 140px; animation-duration: 9s; animation-delay: -3s; }
-    .bg-e3 { bottom: 30px;  left:  20%; font-size: 110px; animation-duration: 14s; animation-delay: -6s; }
-    .bg-e4 { top:    20%;   right: 18%; font-size: 100px; animation-duration: 11s; animation-delay: -1s; }
-    @keyframes emoji-float {
-      0%, 100% { transform: translateY(0) rotate(-4deg); }
-      50%       { transform: translateY(-16px) rotate(4deg); }
-    }
 
     /* ── Frosted glass card ── */
     .hero-glass {
@@ -590,11 +569,6 @@
     <div class="orb orb-2"></div>
     <div class="orb orb-3"></div>
     <div class="orb orb-4"></div>
-    <!-- intentional floating emoji elements, blurred through glass -->
-    <span class="bg-emoji bg-e1">✋</span>
-    <span class="bg-emoji bg-e2">👍</span>
-    <span class="bg-emoji bg-e3">🎵</span>
-    <span class="bg-emoji bg-e4">👈</span>
   </div>
 
   <!-- frosted glass card -->
