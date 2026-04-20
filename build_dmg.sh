@@ -115,11 +115,13 @@ hdiutil create \
 
 rm -rf "$STAGING"
 
+# Also copy as Waiv.dmg so the "latest/download/Waiv.dmg" GitHub link always works
+cp "dist/$DMG_NAME" "dist/Waiv.dmg"
+
 echo ""
 echo "Done!  dist/$DMG_NAME  ($(du -sh "dist/$DMG_NAME" | cut -f1))"
 echo ""
 echo "Next steps:"
 echo "  1. Test:   open $APP_PATH"
-echo "  2. Release: gh release create v${VERSION} dist/$DMG_NAME \\"
+echo "  2. Release: gh release create v${VERSION} dist/$DMG_NAME dist/Waiv.dmg \\"
 echo "                 --title 'Waiv ${VERSION}' --generate-notes"
-echo "  3. Update the download link in docs/index.html"
