@@ -13,6 +13,7 @@ Menu: Show Gestures… | Pause/Resume | Quit
 import logging
 import os
 import signal
+import subprocess
 import sys
 import time
 import threading
@@ -54,6 +55,7 @@ MODEL_PATH    = os.path.join(_HERE, "hand_landmarker.task")
 
 _paused   = False
 _stop_evt = threading.Event()
+_camera_ok = False   # True once camera successfully opens; read by health-check wizard
 
 # Wizard hooks — set while the setup wizard is active so gestures route there
 _wizard: SetupWizardWindow | None = None
@@ -93,13 +95,19 @@ class WaivStatusBar(rumps.App):
         self._spinner_timer.stop()
         self.title = "⚠️"
 
+    def set_warning(self, message: str = ""):
+        self._spinner_timer.stop()
+        self.title = "⚠️"
+        if message:
+            media_controller._notify("Waiv Warning", message)
+
     def _show_gestures(self, sender):
         self._onboarding.show()
 
     def _show_setup(self, sender):
         from hud import SetupWizardWindow
         win = SetupWizardWindow()
-        win.show()
+        win.show_health_check()
 
     def _toggle_pause(self, sender):
         global _paused
@@ -116,7 +124,6 @@ class WaivStatusBar(rumps.App):
     def _quit(self, sender):
         log.info("Quit requested from menu.")
         media_controller._notify("Waiv Stopping", "Goodbye.")
-        import subprocess
         subprocess.run(
             ["launchctl", "unload",
              os.path.expanduser("~/Library/LaunchAgents/com.waiv.gesture.plist")],
@@ -130,7 +137,7 @@ class WaivStatusBar(rumps.App):
 # ── Gesture loop ──────────────────────────────────────────────────────────────
 
 def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
-    global _wizard
+    global _wizard, _camera_ok
 
     if not os.path.exists(MODEL_PATH):
         log.error("Model not found: %s", MODEL_PATH)
@@ -147,37 +154,55 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
     )
     detector = mp_vision.HandLandmarker.create_from_options(options)
 
-    cap = cv2.VideoCapture(CAMERA_INDEX)
-    if not cap.isOpened():
-        log.error("Cannot open camera %d — permission denied or in use.", CAMERA_INDEX)
+    # ── Camera open with retry ─────────────────────────────────────────────
+    cap = None
+    while not _stop_evt.is_set():
+        cap = cv2.VideoCapture(CAMERA_INDEX)
+        if cap.isOpened():
+            break
+        cap.release()
+        cap = None
+        log.warning("Camera unavailable — retrying in 30 s")
         AppHelper.callAfter(app.set_error)
         if _wizard:
             _wizard.camera_error()
         try:
-            import subprocess
-            subprocess.run([
-                "osascript", "-e",
-                'display notification "Go to System Settings > Privacy > Camera '
-                'and enable Waiv." with title "Waiv" subtitle "Camera permission needed"'
-            ], timeout=3)
+            subprocess.run(
+                ["osascript", "-e",
+                 'display notification "Open System Settings → Privacy → Camera and allow Waiv."'
+                 ' with title "Waiv" subtitle "Camera permission needed"'],
+                timeout=3,
+            )
         except Exception:
             pass
-        os.kill(os.getpid(), signal.SIGTERM)
+        _stop_evt.wait(30)
+
+    if cap is None or _stop_evt.is_set():
         return
 
     log.info("Camera ready. Watching for gestures…")
+    _camera_ok = True
     AppHelper.callAfter(app.set_ready)
-
-    # Notify wizard that camera is confirmed open
     if _wizard:
         _wizard.camera_ready()
 
     threading.Thread(target=media_controller.warmup, daemon=True).start()
 
-    classifier     = GestureClassifier()
-    frame_interval = 1.0 / ACTIVE_FPS
+    classifier      = GestureClassifier()
+    frame_interval  = 1.0 / ACTIVE_FPS
+    ax_check_t      = time.monotonic()
+    AX_CHECK_EVERY  = 60.0   # seconds
 
     while not _stop_evt.is_set():
+        # ── Accessibility health check ─────────────────────────────────────
+        now = time.monotonic()
+        if now - ax_check_t > AX_CHECK_EVERY:
+            ax_check_t = now
+            from hud import is_accessibility_trusted
+            if not is_accessibility_trusted():
+                log.warning("Accessibility permission lost")
+                AppHelper.callAfter(app.set_warning, "Accessibility permission lost — open Show Setup…")
+
         if _paused:
             time.sleep(0.5)
             continue
@@ -191,7 +216,19 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
 
         ret, frame = cap.read()
         if not ret:
-            log.warning("Camera frame missed")
+            # Camera disconnected mid-session — retry
+            log.warning("Camera lost mid-session — retrying in 5 s")
+            cap.release()
+            _camera_ok = False
+            AppHelper.callAfter(app.set_error)
+            _stop_evt.wait(5)
+            cap = cv2.VideoCapture(CAMERA_INDEX)
+            if not cap.isOpened():
+                cap.release()
+                cap = None
+                break
+            _camera_ok = True
+            AppHelper.callAfter(app.set_ready)
             continue
 
         frame = cv2.flip(frame, 1)
@@ -206,7 +243,6 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
         if gesture:
             log.info("Gesture: %s", gesture)
             if _wizard:
-                # During setup: route to wizard only
                 _wizard.on_gesture(gesture)
             else:
                 hud.show(gesture)
@@ -222,7 +258,8 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
             time.sleep(sleep_for)
 
     log.info("Releasing camera…")
-    cap.release()
+    if cap:
+        cap.release()
     detector.close()
 
 

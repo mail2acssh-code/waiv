@@ -340,6 +340,73 @@ class SetupWizardWindow:
         self._on_complete = on_complete
         AppHelper.callAfter(self._show_main)
 
+    def show_health_check(self):
+        """
+        Show wizard in health-check mode: immediately verify all permissions
+        and display current status. Called from 'Show Setup…' menu item.
+        """
+        self._on_complete = None
+        AppHelper.callAfter(self._show_health_check_main)
+
+    def _show_health_check_main(self):
+        NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+        if self._window and self._window.isVisible():
+            self._window.makeKeyAndOrderFront_(None)
+            # Re-run the check even if already visible
+        else:
+            self._build()
+            self._window.center()
+            self._window.makeKeyAndOrderFront_(None)
+
+        # Show all steps as PENDING first, then check each
+        for i in range(len(_WIZARD_STEPS)):
+            self._set_row_state(i, _PENDING)
+
+        # Step 0 — Accessibility
+        if is_accessibility_trusted():
+            self._set_row_state(_STEP_ACCESSIBILITY, _DONE)
+        else:
+            self._set_row_state(_STEP_ACCESSIBILITY, _ACTIVE)
+            self._settings_btn.setHidden_(False)
+
+        # Step 1 — Camera (infer from gesture_app state)
+        try:
+            import gesture_app as _ga
+            cam_ok = _ga._camera_ok
+        except Exception:
+            cam_ok = False
+        if cam_ok:
+            self._set_row_state(_STEP_CAMERA, _DONE)
+        else:
+            self._set_row_state(_STEP_CAMERA, _ACTIVE)
+
+        # Step 2 — Gesture detection (if camera ok and loop running, it works)
+        if cam_ok:
+            self._set_row_state(_STEP_GESTURE, _DONE)
+        else:
+            self._set_row_state(_STEP_GESTURE, _PENDING)
+
+        # Step 3 — All Set
+        ax_ok = is_accessibility_trusted()
+        if ax_ok and cam_ok:
+            self._set_row_state(_STEP_DONE, _DONE)
+            sym = _WIZARD_STEPS[_STEP_DONE][0]
+            self._big_icon.setImage_(_sf_symbol(sym, 64, NSColor.systemGreenColor()))
+            self._instruction.setStringValue_("All permissions are in place.")
+        else:
+            sym = _WIZARD_STEPS[_STEP_DONE][0]
+            self._big_icon.setImage_(_sf_symbol("exclamationmark.triangle.fill", 64,
+                                                NSColor.systemOrangeColor()))
+            issues = []
+            if not ax_ok:
+                issues.append("Accessibility not granted")
+            if not cam_ok:
+                issues.append("Camera unavailable")
+            self._instruction.setStringValue_("\n".join(issues))
+
+        self._done_btn.setHidden_(True)
+        self._current = -1  # not in sequential flow
+
     def camera_ready(self):
         """Called from gesture thread when camera opens."""
         self._camera_ready = True

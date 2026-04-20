@@ -1,42 +1,78 @@
 """
 Waiv launcher — entry point for the .app bundle.
 
-On first run:
-  1. Installs the LaunchAgent plist → ~/Library/LaunchAgents/
-  2. Loads it (starts background gesture loop)
-  3. Shows a notification and exits
+Modes:
+  --daemon   : called by launchd — skip installer, run gesture loop directly
+  (no args)  : opened by user — install/upgrade agent, then exit
 
-On subsequent runs (LaunchAgent already installed):
-  Just shows a "Waiv is running" notification and exits.
-
-The actual gesture loop lives in gesture_app.py and is managed by launchd.
+Install logic:
+  - If agent not installed: fresh install (writes plist, loads agent)
+  - If agent installed with stale plist: auto-upgrade silently
+  - If agent installed and current: show "already running" hint
 """
 
 import os
 import subprocess
 import sys
 import plistlib
-import shutil
+import time
 
 BUNDLE_ID     = "com.waiv.gesture"
 PLIST_NAME    = f"{BUNDLE_ID}.plist"
 LAUNCH_AGENTS = os.path.expanduser("~/Library/LaunchAgents")
 PLIST_DEST    = os.path.join(LAUNCH_AGENTS, PLIST_NAME)
 
-# Paths inside the .app bundle
-BUNDLE_RES  = os.path.dirname(os.path.abspath(__file__))
+BUNDLE_RES   = os.path.dirname(os.path.abspath(__file__))
 BUNDLE_MACOS = os.path.join(os.path.dirname(BUNDLE_RES), "MacOS")
-WAIV_BIN    = os.path.join(BUNDLE_MACOS, "Waiv")   # TCC-visible binary = com.waiv.gesture
-PYTHON_BIN  = sys.executable
-GESTURE_APP = os.path.join(BUNDLE_RES, "gesture_app.py")
-NOTIFIER    = "/opt/homebrew/bin/terminal-notifier"
+WAIV_BIN     = os.path.join(BUNDLE_MACOS, "Waiv")
+PYTHON_BIN   = sys.executable
+GESTURE_APP  = os.path.join(BUNDLE_RES, "gesture_app.py")
+NOTIFIER     = "/opt/homebrew/bin/terminal-notifier"
+
+
+def notify(title: str, message: str = ""):
+    try:
+        if os.path.exists(NOTIFIER):
+            subprocess.run(
+                [NOTIFIER, "-title", "Waiv", "-subtitle", title,
+                 "-message", message or " ", "-sound", "Glass"],
+                capture_output=True, timeout=5,
+            )
+        else:
+            subprocess.run(
+                ["osascript", "-e",
+                 f'display notification "{message}" with title "Waiv" subtitle "{title}"'],
+                capture_output=True, timeout=3,
+            )
+    except Exception:
+        pass
+
+
+def is_agent_loaded() -> bool:
+    r = subprocess.run(["launchctl", "list", BUNDLE_ID],
+                       capture_output=True, text=True)
+    return r.returncode == 0
+
+
+def plist_is_current() -> bool:
+    """True if installed plist points to this Waiv binary with --daemon flag."""
+    if not os.path.exists(PLIST_DEST):
+        return False
+    try:
+        with open(PLIST_DEST, "rb") as f:
+            p = plistlib.load(f)
+        args = p.get("ProgramArguments", [])
+        return (len(args) >= 2
+                and args[0] == WAIV_BIN
+                and "--daemon" in args)
+    except Exception:
+        return False
 
 
 def request_camera_permission() -> bool:
     """
-    Trigger the macOS TCC camera permission dialog by briefly opening the camera.
-    Must be called from the .app bundle (has NSCameraUsageDescription plist key).
-    Returns True if camera appears accessible.
+    Briefly open the camera from the .app bundle context to trigger the TCC
+    permission dialog.  Must be called from a visible .app process.
     """
     try:
         import cv2
@@ -45,89 +81,71 @@ def request_camera_permission() -> bool:
         cap.release()
         return opened
     except Exception:
-        return True  # can't check — proceed anyway
-
-
-def notify(title: str, message: str = ""):
-    try:
-        if os.path.exists(NOTIFIER):
-            subprocess.run([NOTIFIER,
-                            "-title", "Waiv",
-                            "-subtitle", title,
-                            "-message", message or " ",
-                            "-sound", "Glass"],
-                           capture_output=True, timeout=5)
-        else:
-            subprocess.run(["osascript", "-e",
-                            f'display notification "{message}" '
-                            f'with title "Waiv" subtitle "{title}"'],
-                           capture_output=True, timeout=3)
-    except Exception:
-        pass
-
-
-def is_agent_loaded() -> bool:
-    result = subprocess.run(
-        ["launchctl", "list", BUNDLE_ID],
-        capture_output=True, text=True
-    )
-    return result.returncode == 0
+        return True
 
 
 def install_agent():
-    # Run via the Waiv binary (not python directly) so TCC shows "Waiv" instead
-    # of "python" in System Settings → Privacy → Accessibility / Camera.
-    # The --daemon flag tells launcher.py to skip install and go straight to the
-    # gesture loop.
+    """Write (or overwrite) the plist and reload the agent."""
     plist = {
         "Label": BUNDLE_ID,
         "ProgramArguments": [WAIV_BIN, "--daemon"],
         "WorkingDirectory": BUNDLE_RES,
         "RunAtLoad": True,
         "KeepAlive": {"SuccessfulExit": False},
-        "StandardOutPath": "/tmp/waiv.log",
+        "StandardOutPath":  "/tmp/waiv.log",
         "StandardErrorPath": "/tmp/waiv-error.log",
     }
     os.makedirs(LAUNCH_AGENTS, exist_ok=True)
     with open(PLIST_DEST, "wb") as f:
         plistlib.dump(plist, f)
 
-    subprocess.run(["launchctl", "unload", PLIST_DEST],
-                   capture_output=True)
-    subprocess.run(["launchctl", "load", PLIST_DEST],
-                   capture_output=True)
+    subprocess.run(["launchctl", "unload", PLIST_DEST], capture_output=True)
+    time.sleep(0.5)
+    subprocess.run(["launchctl", "load",   PLIST_DEST], capture_output=True)
 
 
 def main():
-    # --daemon: launched by launchd as the background gesture process.
-    # Skip installer logic and run the gesture loop directly.
+    # ── Daemon mode: called by launchd ────────────────────────────────────────
     if "--daemon" in sys.argv:
         import runpy
         sys.argv = [GESTURE_APP, "--always-active"]
         runpy.run_path(GESTURE_APP, run_name="__main__")
         return
 
-    if is_agent_loaded():
-        notify("Already running", "Waiv is active in the background.")
+    # ── GUI mode: user opened Waiv.app ────────────────────────────────────────
+    loaded = is_agent_loaded()
+    current = plist_is_current()
+
+    if loaded and current:
+        # Already running with correct config — nothing to do
+        notify("Waiv is running",
+               "Use the ✋ menu bar icon · 'Show Setup…' to check permissions.")
         return
 
-    # Request camera permission now (from the visible .app bundle context)
-    # so that the background LaunchAgent inherits the grant.
-    notify("Starting up…", "Grant camera access when prompted.")
+    if loaded and not current:
+        # Old plist format (python -c ...) or wrong binary path — upgrade silently
+        notify("Updating Waiv…", "Restarting with latest configuration.")
+        install_agent()
+        time.sleep(2)
+        notify("Waiv Updated", "Now running as Waiv. Check System Settings → Privacy if needed.")
+        return
+
+    # Not loaded — fresh install or user reinstalling after deletion
+    notify("Starting Waiv…", "Grant camera access when prompted.")
     camera_ok = request_camera_permission()
     if not camera_ok:
         notify("Camera permission needed",
-               "Open System Settings → Privacy → Camera and allow Waiv.")
+               "Open System Settings → Privacy & Security → Camera and allow Waiv.")
 
     install_agent()
-
-    import time
     time.sleep(2)
 
     if is_agent_loaded():
-        notify("Waiv is running", "Show your hand to the camera to control media.")
+        notify("Waiv is running",
+               "Show your hand ✋ to the camera to control media.")
     else:
-        notify("Setup issue", "Check System Settings > Privacy > Camera and allow Python.")
+        notify("Setup issue",
+               "Open System Settings → Privacy & Security → Camera and allow Waiv, then relaunch.")
 
 
 if __name__ == "__main__":

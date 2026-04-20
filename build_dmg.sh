@@ -106,6 +106,19 @@ mkdir "$STAGING"
 cp -r "$APP_PATH" "$STAGING/"
 ln -s /Applications "$STAGING/Applications"
 
+# Add a helper script so quarantined users can double-click to bypass Gatekeeper
+cat > "$STAGING/Open Waiv.command" << 'CMDEOF'
+#!/bin/bash
+APP="/Applications/Waiv.app"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DMG_APP="$SCRIPT_DIR/Waiv.app"
+TARGET="$APP"
+[ ! -d "$APP" ] && TARGET="$DMG_APP"
+xattr -cr "$TARGET" 2>/dev/null
+open "$TARGET"
+CMDEOF
+chmod +x "$STAGING/Open Waiv.command"
+
 hdiutil create \
     -volname "Waiv" \
     -srcfolder "$STAGING" \
