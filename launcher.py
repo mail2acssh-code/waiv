@@ -18,13 +18,15 @@ import sys
 import plistlib
 import shutil
 
-BUNDLE_ID   = "com.waiv.gesture"
-PLIST_NAME  = f"{BUNDLE_ID}.plist"
+BUNDLE_ID     = "com.waiv.gesture"
+PLIST_NAME    = f"{BUNDLE_ID}.plist"
 LAUNCH_AGENTS = os.path.expanduser("~/Library/LaunchAgents")
-PLIST_DEST  = os.path.join(LAUNCH_AGENTS, PLIST_NAME)
+PLIST_DEST    = os.path.join(LAUNCH_AGENTS, PLIST_NAME)
 
 # Paths inside the .app bundle
 BUNDLE_RES  = os.path.dirname(os.path.abspath(__file__))
+BUNDLE_MACOS = os.path.join(os.path.dirname(BUNDLE_RES), "MacOS")
+WAIV_BIN    = os.path.join(BUNDLE_MACOS, "Waiv")   # TCC-visible binary = com.waiv.gesture
 PYTHON_BIN  = sys.executable
 GESTURE_APP = os.path.join(BUNDLE_RES, "gesture_app.py")
 NOTIFIER    = "/opt/homebrew/bin/terminal-notifier"
@@ -73,26 +75,13 @@ def is_agent_loaded() -> bool:
 
 
 def install_agent():
-    # The raw python binary inside the bundle uses the system Homebrew Python
-    # paths, not the bundled libs. We fix this by prepending the bundle's
-    # lib paths before running gesture_app.py.
-    py_ver = f"python{sys.version_info.major}.{sys.version_info.minor}"
-    bundle_lib     = os.path.join(BUNDLE_RES, "lib", py_ver)
-    bundle_dynload = os.path.join(bundle_lib, "lib-dynload")
-    bundle_zip     = os.path.join(BUNDLE_RES, "lib", f"python{sys.version_info.major}{sys.version_info.minor}.zip")
-
-    # Inline bootstrap: fix sys.path then exec gesture_app.
-    # sys.argv is set explicitly so gesture_app sees --always-active.
-    bootstrap = (
-        f"import sys; "
-        f"sys.argv = ['{GESTURE_APP}', '--always-active']; "
-        f"sys.path[:0] = ['{BUNDLE_RES}', '{bundle_lib}', '{bundle_dynload}', '{bundle_zip}']; "
-        f"import runpy; runpy.run_path('{GESTURE_APP}', run_name='__main__')"
-    )
-
+    # Run via the Waiv binary (not python directly) so TCC shows "Waiv" instead
+    # of "python" in System Settings → Privacy → Accessibility / Camera.
+    # The --daemon flag tells launcher.py to skip install and go straight to the
+    # gesture loop.
     plist = {
         "Label": BUNDLE_ID,
-        "ProgramArguments": [PYTHON_BIN, "-c", bootstrap],
+        "ProgramArguments": [WAIV_BIN, "--daemon"],
         "WorkingDirectory": BUNDLE_RES,
         "RunAtLoad": True,
         "KeepAlive": {"SuccessfulExit": False},
@@ -110,6 +99,14 @@ def install_agent():
 
 
 def main():
+    # --daemon: launched by launchd as the background gesture process.
+    # Skip installer logic and run the gesture loop directly.
+    if "--daemon" in sys.argv:
+        import runpy
+        sys.argv = [GESTURE_APP, "--always-active"]
+        runpy.run_path(GESTURE_APP, run_name="__main__")
+        return
+
     if is_agent_loaded():
         notify("Already running", "Waiv is active in the background.")
         return

@@ -1,17 +1,20 @@
 """
-HUD overlay (bottom-centre frosted glass) and onboarding window for Waiv.
+HUD overlay, setup wizard, and onboarding sheet for Waiv.
 
-All AppKit objects must be created and used on the main thread.
-hud.show(gesture) and onboarding.show() are thread-safe — they dispatch
-to the main thread via AppHelper.callAfter.
+All AppKit objects must be created/used on the main thread.
+Public methods (hud.show, wizard.on_gesture, etc.) are thread-safe.
 """
 
+import ctypes
 import os
-
+import subprocess
 import objc
 from AppKit import (
     NSAnimationContext,
+    NSAppearance,
+    NSApplication,
     NSBackingStoreBuffered,
+    NSBezierPath,
     NSButton,
     NSBezelStyleRounded,
     NSColor,
@@ -25,6 +28,7 @@ from AppKit import (
     NSScreen,
     NSTextField,
     NSTextAlignmentCenter,
+    NSView,
     NSVisualEffectBlendingModeBehindWindow,
     NSVisualEffectStateActive,
     NSVisualEffectView,
@@ -35,12 +39,10 @@ from AppKit import (
     NSWindowStyleMaskBorderless,
     NSWindowStyleMaskClosable,
     NSWindowStyleMaskTitled,
+    NSWindowStyleMaskMiniaturizable,
 )
 from PyObjCTools import AppHelper
 
-# -------------------------------------------------------------------
-# Sentinel file
-# -------------------------------------------------------------------
 _SENTINEL = os.path.expanduser("~/.config/waiv/.onboarded")
 
 
@@ -54,9 +56,29 @@ def mark_onboarded():
         f.write("1")
 
 
-# -------------------------------------------------------------------
-# HUD content — SF Symbol name + label per gesture
-# -------------------------------------------------------------------
+# ── Accessibility permission helper ───────────────────────────────────────────
+
+_ax_lib = ctypes.CDLL(
+    "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
+)
+_ax_lib.AXIsProcessTrusted.restype = ctypes.c_bool
+
+
+def is_accessibility_trusted() -> bool:
+    return bool(_ax_lib.AXIsProcessTrusted())
+
+
+def open_accessibility_settings():
+    subprocess.run(
+        ["open",
+         "x-apple.systempreferences:com.apple.preference.security"
+         "?Privacy_Accessibility"],
+        capture_output=True,
+    )
+
+
+# ── Gesture → HUD info ────────────────────────────────────────────────────────
+
 GESTURE_HUD_INFO = {
     "thumbs_up":     ("speaker.wave.3.fill",  "Volume Up"),
     "thumbs_down":   ("speaker.wave.1.fill",  "Volume Down"),
@@ -79,30 +101,51 @@ ONBOARDING_ROWS = [
     ("power",                "Pinky Up",      "Quit Waiv"),
 ]
 
-# -------------------------------------------------------------------
-# Helpers
-# -------------------------------------------------------------------
+# ── SF Symbol helpers ─────────────────────────────────────────────────────────
 
 def _sf_symbol(name: str, point_size: float, color: NSColor) -> NSImage:
-    """Return a tinted SF Symbol image at the requested point size."""
-    cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_(
-        point_size, 0.0  # 0.0 = regular weight
-    )
+    cfg = NSImageSymbolConfiguration.configurationWithPointSize_weight_(point_size, 0.0)
     base = NSImage.imageWithSystemSymbolName_accessibilityDescription_(name, None)
     img  = base.imageWithSymbolConfiguration_(cfg)
-    return img.imageWithTintColor_(color)
+    # imageWithTintColor_ is macOS 12+; use a lock/unlock drawing fallback for older
+    try:
+        return img.imageWithTintColor_(color)
+    except AttributeError:
+        tinted = img.copy()
+        tinted.lockFocus()
+        color.set()
+        from AppKit import NSRectFillUsingOperation, NSCompositingOperationSourceIn, NSZeroRect
+        import AppKit
+        AppKit.NSRectFillUsingOperation(AppKit.NSMakeRect(0, 0, img.size().width, img.size().height),
+                                        AppKit.NSCompositingOperationSourceIn)
+        tinted.unlockFocus()
+        return tinted
 
 
 def _image_view(frame, symbol_name: str, point_size: float, color: NSColor) -> NSImageView:
     iv = NSImageView.alloc().initWithFrame_(frame)
     iv.setImage_(_sf_symbol(symbol_name, point_size, color))
-    iv.setImageScaling_(3)  # NSImageScalingProportionallyUpOrDown
+    iv.setImageScaling_(3)
     return iv
 
 
-# -------------------------------------------------------------------
-# NSObject target for button actions
-# -------------------------------------------------------------------
+def _label(parent, text, frame, size=14, bold=False, color=None, align=NSTextAlignmentCenter):
+    f = NSTextField.alloc().initWithFrame_(frame)
+    f.setStringValue_(text)
+    f.setFont_(NSFont.boldSystemFontOfSize_(size) if bold else NSFont.systemFontOfSize_(size))
+    if color:
+        f.setTextColor_(color)
+    f.setAlignment_(align)
+    f.setEditable_(False)
+    f.setBordered_(False)
+    f.setDrawsBackground_(False)
+    if parent is not None:
+        parent.addSubview_(f)
+    return f
+
+
+# ── NSObject action target ────────────────────────────────────────────────────
+
 class _ButtonTarget(NSObject):
     def init(self):
         self = objc.super(_ButtonTarget, self).init()
@@ -116,18 +159,12 @@ class _ButtonTarget(NSObject):
             self._cb()
 
 
-# -------------------------------------------------------------------
-# HUD
-# -------------------------------------------------------------------
-class WaivHUD:
-    """
-    Square frosted-glass HUD at the bottom-centre of the screen.
-    Fades in on gesture confirmation, auto-dismisses after ~2 s.
-    """
+# ── HUD overlay ───────────────────────────────────────────────────────────────
 
-    SZ = 160          # tile size (points)
-    RADIUS = 22       # corner radius
-    Y_OFFSET = 60     # points above Dock
+class WaivHUD:
+    SZ       = 160
+    RADIUS   = 22
+    Y_OFFSET = 60
 
     def __init__(self):
         self._window      = None
@@ -135,12 +172,8 @@ class WaivHUD:
         self._label_field = None
         self._dismiss_gen = 0
 
-    # --- public (thread-safe) ---
-
     def show(self, gesture: str):
         AppHelper.callAfter(self._show_main, gesture)
-
-    # --- main-thread only ---
 
     def _show_main(self, gesture):
         if gesture not in GESTURE_HUD_INFO:
@@ -150,23 +183,17 @@ class WaivHUD:
         if self._window is None:
             self._build()
 
-        # Swap icon
-        self._icon_view.setImage_(
-            _sf_symbol(symbol_name, 52, NSColor.whiteColor())
-        )
+        self._icon_view.setImage_(_sf_symbol(symbol_name, 52, NSColor.whiteColor()))
         self._label_field.setStringValue_(label)
 
-        # Centre horizontally on whichever screen has the menu bar
         screen = NSScreen.mainScreen().frame()
         x = screen.origin.x + (screen.size.width - self.SZ) / 2
         y = screen.origin.y + self.Y_OFFSET
         self._window.setFrame_display_(NSMakeRect(x, y, self.SZ, self.SZ), False)
 
-        # Cancel any pending dismiss
         self._dismiss_gen += 1
         gen = self._dismiss_gen
 
-        # Fade in
         self._window.setAlphaValue_(0.0)
         self._window.orderFrontRegardless()
         NSAnimationContext.beginGrouping()
@@ -193,7 +220,6 @@ class WaivHUD:
         SZ = self.SZ
         rect = NSMakeRect(0, 0, SZ, SZ)
 
-        # --- window (borderless, fully transparent) ---
         win = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             rect, NSWindowStyleMaskBorderless, NSBackingStoreBuffered, False
         )
@@ -208,33 +234,26 @@ class WaivHUD:
         win.setIgnoresMouseEvents_(True)
         win.setHasShadow_(True)
 
-        # --- frosted glass view ---
         effect = NSVisualEffectView.alloc().initWithFrame_(rect)
-        effect.setMaterial_(22)   # NSVisualEffectMaterialHUDWindow — dark frosted
+        effect.setMaterial_(22)
         effect.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
         effect.setState_(NSVisualEffectStateActive)
         win.setContentView_(effect)
 
-        # Apply corner radius AFTER adding to window so the layer is live.
-        # Using CALayer mask for a pixel-perfect clip (no edge colour bleed).
         effect.setWantsLayer_(True)
         layer = effect.layer()
         layer.setCornerRadius_(self.RADIUS)
         layer.setMasksToBounds_(True)
-        layer.setCornerCurve_("continuous")   # iOS-style squircle
+        layer.setCornerCurve_("continuous")
 
-        # --- SF Symbol icon (centred in upper ~60% of tile) ---
-        icon_sz  = 72
-        icon_x   = (SZ - icon_sz) / 2
-        icon_y   = SZ - icon_sz - 12          # 12 pt from top
-        iv = _image_view(
-            NSMakeRect(icon_x, icon_y, icon_sz, icon_sz),
-            "speaker.wave.3.fill", 52, NSColor.whiteColor()
-        )
+        icon_sz = 72
+        icon_x  = (SZ - icon_sz) / 2
+        icon_y  = SZ - icon_sz - 12
+        iv = _image_view(NSMakeRect(icon_x, icon_y, icon_sz, icon_sz),
+                         "speaker.wave.3.fill", 52, NSColor.whiteColor())
         effect.addSubview_(iv)
         self._icon_view = iv
 
-        # --- text label (centred in lower ~30%) ---
         lbl = NSTextField.alloc().initWithFrame_(NSMakeRect(8, 12, SZ - 16, 46))
         lbl.setFont_(NSFont.boldSystemFontOfSize_(14))
         lbl.setTextColor_(NSColor.whiteColor())
@@ -248,11 +267,379 @@ class WaivHUD:
         self._window = win
 
 
-# -------------------------------------------------------------------
-# Onboarding / gesture reference sheet
-# -------------------------------------------------------------------
+# ── Setup Wizard ──────────────────────────────────────────────────────────────
+
+# (symbol, step_title, pending_detail, active_detail, done_detail)
+_WIZARD_STEPS = [
+    ("hand.point.up.left.fill",
+     "Accessibility",
+     "Checking…",
+     "Click 'Open Settings', add Waiv, then return here.",
+     "Accessibility granted"),
+    ("camera.fill",
+     "Camera Access",
+     "Waiting…",
+     "Opening camera…",
+     "Camera ready"),
+    ("hand.raised.fill",
+     "Gesture Detection",
+     "Waiting…",
+     "Raise an open palm toward the camera",
+     "Gesture detected!"),
+    ("checkmark.seal.fill",
+     "All Set",
+     "",
+     "Waiv is ready — enjoy!",
+     "Waiv is ready — enjoy!"),
+]
+
+# Step indices (named for readability)
+_STEP_ACCESSIBILITY = 0
+_STEP_CAMERA        = 1
+_STEP_GESTURE       = 2
+_STEP_DONE          = 3
+
+# Step states
+_PENDING = 0
+_ACTIVE  = 1
+_DONE    = 2
+
+
+class SetupWizardWindow:
+    """
+    Four-step setup wizard shown on first launch (and re-openable from menu).
+      Step 0 — Accessibility permission  (polls AXIsProcessTrusted)
+      Step 1 — Camera access             (auto-advances when camera opens)
+      Step 2 — Gesture test              (user raises open palm)
+      Step 3 — All Set
+
+    Thread-safe: camera_ready() and on_gesture() may be called from any thread.
+    """
+
+    W, H = 500, 510
+
+    def __init__(self):
+        self._window            = None
+        self._content           = None
+        self._step_rows         = []
+        self._big_icon          = None
+        self._instruction       = None
+        self._done_btn          = None
+        self._settings_btn      = None
+        self._btn_target        = None
+        self._settings_target   = None
+        self._current           = -1
+        self._palm_armed        = False
+        self._on_complete       = None
+        self._camera_ready      = False
+        self._ax_timer          = None   # rumps.Timer polling accessibility
+
+    # ── public / thread-safe ──────────────────────────────────────────────────
+
+    def show(self, on_complete=None):
+        self._on_complete = on_complete
+        AppHelper.callAfter(self._show_main)
+
+    def camera_ready(self):
+        """Called from gesture thread when camera opens."""
+        self._camera_ready = True
+        AppHelper.callAfter(self._complete_step, _STEP_CAMERA)
+
+    def camera_error(self):
+        """Called from gesture thread if camera fails."""
+        AppHelper.callAfter(self._mark_camera_error)
+
+    def on_gesture(self, gesture: str):
+        """Called from gesture thread with each detected gesture."""
+        if self._palm_armed and gesture == "open_palm":
+            self._palm_armed = False
+            AppHelper.callAfter(self._complete_step, _STEP_GESTURE)
+
+    # ── main-thread internals ─────────────────────────────────────────────────
+
+    def _show_main(self):
+        NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+        if self._window and self._window.isVisible():
+            self._window.makeKeyAndOrderFront_(None)
+            return
+        self._build()
+        self._window.center()
+        self._window.makeKeyAndOrderFront_(None)
+        self._go_to_step(_STEP_ACCESSIBILITY)
+
+    def _go_to_step(self, idx):
+        if idx >= len(_WIZARD_STEPS):
+            return
+        self._current = idx
+        sym, _, _, active_detail, _ = _WIZARD_STEPS[idx]
+
+        for i in range(len(_WIZARD_STEPS)):
+            if i < idx:
+                self._set_row_state(i, _DONE)
+            elif i == idx:
+                self._set_row_state(i, _ACTIVE)
+            else:
+                self._set_row_state(i, _PENDING)
+
+        colour = NSColor.systemGreenColor() if idx == _STEP_DONE else NSColor.whiteColor()
+        self._big_icon.setImage_(_sf_symbol(sym, 64, colour))
+        gray2 = NSColor.colorWithRed_green_blue_alpha_(0.6, 0.6, 0.6, 1.0)
+        self._instruction.setTextColor_(gray2)
+        self._instruction.setStringValue_(active_detail)
+
+        # Hide both action buttons by default; show as needed
+        self._done_btn.setHidden_(True)
+        self._settings_btn.setHidden_(True)
+
+        if idx == _STEP_ACCESSIBILITY:
+            if is_accessibility_trusted():
+                AppHelper.callLater(0.4, lambda: self._complete_step(_STEP_ACCESSIBILITY))
+            else:
+                self._settings_btn.setHidden_(False)
+                self._start_ax_poll()
+
+        elif idx == _STEP_CAMERA:
+            self._stop_ax_poll()
+            if self._camera_ready:
+                AppHelper.callLater(0.4, lambda: self._complete_step(_STEP_CAMERA))
+
+        elif idx == _STEP_GESTURE:
+            self._palm_armed = True
+
+        elif idx == _STEP_DONE:
+            self._set_row_state(_STEP_DONE, _DONE)
+            self._done_btn.setHidden_(False)
+            NSAnimationContext.beginGrouping()
+            NSAnimationContext.currentContext().setDuration_(0.4)
+            self._big_icon.animator().setAlphaValue_(0.0)
+            NSAnimationContext.endGrouping()
+            AppHelper.callLater(0.4, self._pulse_done)
+
+    def _pulse_done(self):
+        NSAnimationContext.beginGrouping()
+        NSAnimationContext.currentContext().setDuration_(0.4)
+        self._big_icon.animator().setAlphaValue_(1.0)
+        NSAnimationContext.endGrouping()
+
+    def _complete_step(self, idx):
+        if idx != self._current:
+            return
+        self._set_row_state(idx, _DONE)
+        _, _, _, _, done_detail = _WIZARD_STEPS[idx]
+        self._instruction.setTextColor_(
+            NSColor.colorWithRed_green_blue_alpha_(0.6, 0.6, 0.6, 1.0))
+        self._instruction.setStringValue_(done_detail)
+        AppHelper.callLater(0.6, lambda: self._go_to_step(idx + 1))
+
+    def _mark_camera_error(self):
+        if self._current != _STEP_CAMERA:
+            return
+        self._instruction.setStringValue_(
+            "Camera permission denied.\n"
+            "Open System Settings → Privacy & Security → Camera\n"
+            "and allow Waiv, then relaunch."
+        )
+        self._big_icon.setImage_(_sf_symbol("exclamationmark.triangle.fill", 72,
+                                            NSColor.systemOrangeColor()))
+
+    def _set_row_state(self, idx, state):
+        _, iv, title_f, detail_f = self._step_rows[idx]
+        sym_name, step_title, pending_d, active_d, done_d = _WIZARD_STEPS[idx]
+
+        gray3 = NSColor.colorWithRed_green_blue_alpha_(0.35, 0.35, 0.35, 1.0)
+        gray2 = NSColor.colorWithRed_green_blue_alpha_(0.6,  0.6,  0.6,  1.0)
+
+        if state == _PENDING:
+            iv.setImage_(_sf_symbol("circle", 18, gray3))
+            title_f.setTextColor_(gray3)
+            detail_f.setTextColor_(gray3)
+            detail_f.setStringValue_(pending_d)
+        elif state == _ACTIVE:
+            iv.setImage_(_sf_symbol("circle.dotted", 18, NSColor.systemBlueColor()))
+            title_f.setTextColor_(NSColor.whiteColor())
+            detail_f.setTextColor_(gray2)
+            detail_f.setStringValue_(active_d)
+        else:
+            iv.setImage_(_sf_symbol("checkmark.circle.fill", 18, NSColor.systemGreenColor()))
+            title_f.setTextColor_(NSColor.whiteColor())
+            detail_f.setTextColor_(gray2)
+            detail_f.setStringValue_(done_d)
+
+        self._step_rows[idx] = (state, iv, title_f, detail_f)
+
+    def _start_ax_poll(self):
+        """Poll every 1.5 s until Accessibility is granted."""
+        if self._ax_timer:
+            return
+        import rumps
+        self._ax_timer = rumps.Timer(self._check_ax, 1.5)
+        self._ax_timer.start()
+
+    def _stop_ax_poll(self):
+        if self._ax_timer:
+            self._ax_timer.stop()
+            self._ax_timer = None
+
+    def _check_ax(self, _timer):
+        if self._current != _STEP_ACCESSIBILITY:
+            self._stop_ax_poll()
+            return
+        if is_accessibility_trusted():
+            self._stop_ax_poll()
+            AppHelper.callAfter(self._complete_step, _STEP_ACCESSIBILITY)
+
+    def _open_settings(self):
+        open_accessibility_settings()
+
+    def _finish(self):
+        mark_onboarded()
+        if self._on_complete:
+            self._on_complete()
+        if self._window:
+            self._window.orderOut_(None)
+
+    # ── builder ───────────────────────────────────────────────────────────────
+
+    def _build(self):
+        W, H = self.W, self.H
+
+        # ── Window — forced dark, flat black like the landing page ────────────
+        win = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
+            NSMakeRect(0, 0, W, H),
+            NSWindowStyleMaskTitled | NSWindowStyleMaskClosable,
+            NSBackingStoreBuffered, False,
+        )
+        win.setTitle_("Setting up Waiv")
+        win.setLevel_(NSFloatingWindowLevel + 1)
+        win.setTitlebarAppearsTransparent_(True)
+        win.setAppearance_(NSAppearance.appearanceNamed_("NSAppearanceNameDarkAqua"))
+        # Flat opaque dark surface (matches landing page #0d0d0d)
+        win.setBackgroundColor_(
+            NSColor.colorWithRed_green_blue_alpha_(0.05, 0.05, 0.05, 1.0)
+        )
+
+        bg = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, W, H))
+        win.setContentView_(bg)
+        self._content = bg
+
+        # Colors matching landing page dark theme
+        white   = NSColor.whiteColor()
+        gray2   = NSColor.colorWithRed_green_blue_alpha_(0.6, 0.6, 0.6, 1.0)   # #999
+        gray3   = NSColor.colorWithRed_green_blue_alpha_(0.35, 0.35, 0.35, 1.0) # #555
+        border  = NSColor.colorWithRed_green_blue_alpha_(1.0, 1.0, 1.0, 0.1)
+        green   = NSColor.systemGreenColor()
+        blue    = NSColor.systemBlueColor()
+
+        def _div(parent, x, y, w, h=1):
+            d = NSTextField.alloc().initWithFrame_(NSMakeRect(x, y, w, h))
+            d.setEditable_(False); d.setBordered_(False)
+            d.setDrawsBackground_(True)
+            d.setBackgroundColor_(border)
+            parent.addSubview_(d)
+
+        # ── Header ────────────────────────────────────────────────────────────
+        _label(bg, "Setting up Waiv",
+               NSMakeRect(24, H - 54, W - 48, 28),
+               size=18, bold=True, color=white)
+        _label(bg, "Confirming all permissions are in place.",
+               NSMakeRect(24, H - 76, W - 48, 20),
+               size=12, color=gray2)
+        _div(bg, 0, H - 86, W)
+
+        # ── Step rows — landing page install-step style ───────────────────────
+        ROW_H = 56
+        y = H - 88
+        self._step_rows = []
+        for i, (sym, step_title, pending_d, active_d, done_d) in enumerate(_WIZARD_STEPS):
+            row_y = y - ROW_H
+
+            # Step state icon (SF symbol)
+            iv = _image_view(NSMakeRect(20, row_y + 17, 22, 22),
+                             "circle", 18, gray3)
+            bg.addSubview_(iv)
+
+            # Step title
+            title_f = _label(bg, step_title,
+                             NSMakeRect(52, row_y + 20, W - 80, 18),
+                             size=13, bold=True, color=gray3)
+            title_f.setAlignment_(4)
+
+            # Step detail
+            detail_f = _label(bg, pending_d,
+                              NSMakeRect(52, row_y + 4, W - 80, 16),
+                              size=11, color=gray3)
+            detail_f.setAlignment_(4)
+
+            self._step_rows.append((_PENDING, iv, title_f, detail_f))
+
+            # Thin divider between rows (not after last)
+            if i < len(_WIZARD_STEPS) - 1:
+                _div(bg, 52, row_y, W - 52)
+
+            y = row_y
+
+        # ── Divider below steps ───────────────────────────────────────────────
+        sep_y = y
+        _div(bg, 0, sep_y, W)
+
+        # ── Big centre icon ───────────────────────────────────────────────────
+        icon_area_h = sep_y - 68   # 68 = button bar height
+        icon_y = 68 + (icon_area_h - 80) // 2
+        self._big_icon = _image_view(
+            NSMakeRect((W - 80) // 2, icon_y, 80, 80),
+            "hand.point.up.left.fill", 64, white
+        )
+        bg.addSubview_(self._big_icon)
+
+        # ── Instruction label ─────────────────────────────────────────────────
+        inst_y = icon_y - 52
+        self._instruction = _label(
+            bg, "",
+            NSMakeRect(24, inst_y, W - 48, 46),
+            size=13, color=gray2
+        )
+        self._instruction.setMaximumNumberOfLines_(3)
+        self._instruction.setLineBreakMode_(3)
+        self._instruction.setAlignment_(1)  # centre
+
+        # ── Button bar ────────────────────────────────────────────────────────
+        _div(bg, 0, 60, W)
+
+        # "Open Settings…" — bordered outline style (secondary)
+        sbtn = NSButton.alloc().initWithFrame_(NSMakeRect(W // 2 - 82, 16, 164, 32))
+        sbtn.setTitle_("Open Settings…")
+        sbtn.setBezelStyle_(NSBezelStyleRounded)
+        sbtn.setHidden_(True)
+
+        s_target = _ButtonTarget.alloc().init()
+        s_target._cb = self._open_settings
+        self._settings_target = s_target
+        sbtn.setTarget_(s_target)
+        sbtn.setAction_("doAction:")
+        bg.addSubview_(sbtn)
+        self._settings_btn = sbtn
+
+        # "Start Using Waiv" — primary white-fill style
+        btn = NSButton.alloc().initWithFrame_(NSMakeRect(W // 2 - 82, 16, 164, 32))
+        btn.setTitle_("Start Using Waiv")
+        btn.setBezelStyle_(NSBezelStyleRounded)
+        btn.setHidden_(True)
+
+        target = _ButtonTarget.alloc().init()
+        target._cb = self._finish
+        self._btn_target = target
+        btn.setTarget_(target)
+        btn.setAction_("doAction:")
+        bg.addSubview_(btn)
+        self._done_btn = btn
+
+        self._window = win
+
+
+# ── Gesture reference sheet ───────────────────────────────────────────────────
+
 class OnboardingWindow:
-    """Gesture reference sheet. Thread-safe."""
+    """Gesture reference sheet shown from the menu. Thread-safe."""
 
     def __init__(self):
         self._window     = None
@@ -262,6 +649,7 @@ class OnboardingWindow:
         AppHelper.callAfter(self._show_main)
 
     def _show_main(self):
+        NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
         if self._window and self._window.isVisible():
             self._window.makeKeyAndOrderFront_(None)
             return
@@ -275,72 +663,51 @@ class OnboardingWindow:
         win = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(0, 0, W, H),
             NSWindowStyleMaskTitled | NSWindowStyleMaskClosable,
-            NSBackingStoreBuffered,
-            False,
+            NSBackingStoreBuffered, False,
         )
         win.setTitle_("Waiv — Gesture Guide")
         win.setLevel_(NSFloatingWindowLevel)
         win.setTitlebarAppearsTransparent_(True)
 
         effect = NSVisualEffectView.alloc().initWithFrame_(NSMakeRect(0, 0, W, H))
-        effect.setMaterial_(18)   # under-page background — light/neutral
+        effect.setMaterial_(18)
         effect.setBlendingMode_(NSVisualEffectBlendingModeBehindWindow)
         effect.setState_(NSVisualEffectStateActive)
         win.setContentView_(effect)
 
-        # Title
-        self._lbl(effect, "Waiv Gesture Control",
-                  NSMakeRect(20, H - 62, W - 40, 36), size=18, bold=True)
-        self._lbl(effect, "Hold any gesture steady for 2 seconds to trigger it.",
-                  NSMakeRect(20, H - 90, W - 40, 26),
-                  size=12, color=NSColor.secondaryLabelColor())
+        _label(effect, "Waiv Gesture Control",
+               NSMakeRect(20, H - 62, W - 40, 36), size=18, bold=True)
+        _label(effect, "Hold any gesture steady for 2 seconds to trigger it.",
+               NSMakeRect(20, H - 90, W - 40, 26),
+               size=12, color=NSColor.secondaryLabelColor())
 
-        # Divider
         div = NSTextField.alloc().initWithFrame_(NSMakeRect(20, H - 100, W - 40, 1))
-        div.setEditable_(False)
-        div.setBordered_(False)
+        div.setEditable_(False); div.setBordered_(False)
         div.setDrawsBackground_(True)
         div.setBackgroundColor_(NSColor.separatorColor())
         effect.addSubview_(div)
 
-        # Gesture rows — SF Symbol icon + name + action
         ROW_H = 46
         y = H - 112
         for symbol, name, action in ONBOARDING_ROWS:
-            iv = _image_view(
-                NSMakeRect(16, y + 4, 32, 32),
-                symbol, 20, NSColor.labelColor()
-            )
+            iv = _image_view(NSMakeRect(16, y + 4, 32, 32),
+                             symbol, 20, NSColor.labelColor())
             effect.addSubview_(iv)
-            self._lbl(effect, name,   NSMakeRect(58, y + 14, 160, 22), size=14, bold=True)
-            self._lbl(effect, action, NSMakeRect(228, y + 14, W - 250, 22),
-                      size=13, color=NSColor.secondaryLabelColor())
+            _label(effect, name,   NSMakeRect(58, y + 14, 160, 22),
+                   size=14, bold=True, align=4)
+            _label(effect, action, NSMakeRect(228, y + 14, W - 250, 22),
+                   size=13, color=NSColor.secondaryLabelColor(), align=4)
             y -= ROW_H
 
-        # "Got it" button
         btn = NSButton.alloc().initWithFrame_(NSMakeRect(W // 2 - 55, 18, 110, 32))
         btn.setTitle_("Got it")
         btn.setBezelStyle_(NSBezelStyleRounded)
 
         target = _ButtonTarget.alloc().init()
-        target._cb = lambda: (mark_onboarded(), win.orderOut_(None))
+        target._cb = lambda: win.orderOut_(None)
         self._btn_target = target
         btn.setTarget_(target)
         btn.setAction_("doAction:")
         effect.addSubview_(btn)
 
         self._window = win
-
-    @staticmethod
-    def _lbl(parent, text, frame, size=14, bold=False, color=None):
-        f = NSTextField.alloc().initWithFrame_(frame)
-        f.setStringValue_(text)
-        f.setFont_(NSFont.boldSystemFontOfSize_(size) if bold
-                   else NSFont.systemFontOfSize_(size))
-        if color:
-            f.setTextColor_(color)
-        f.setEditable_(False)
-        f.setBordered_(False)
-        f.setDrawsBackground_(False)
-        parent.addSubview_(f)
-        return f

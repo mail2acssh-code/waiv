@@ -70,35 +70,43 @@ def warmup():
         pass
 
 
+import ctypes, ctypes.util as _ctutil
+_cg = ctypes.CDLL(_ctutil.find_library("CoreGraphics"))
+_cg.CGEventPost.restype  = None
+_cg.CGEventPost.argtypes = [ctypes.c_uint32, ctypes.c_void_p]
+_kCGSessionEventTap = 1   # posts into the current user session; no special perms needed
+
+
 def _send_media_key(key_code: int):
     """
-    Post a HID-level media key event via Swift + CGEventPost.
-    This reaches the system media session (Chrome/YouTube, Safari, etc.)
-    without requiring the target app to be focused.
+    Post a media key event in-process via PyObjC + CoreGraphics.
+    Runs inside the Waiv process (bundle ID com.waiv.gesture), so it inherits
+    the app's permissions without spawning a Swift subprocess.
 
     NX_KEYTYPE values: 16=play/pause  17=next  18=previous
     """
-    swift = f"""
-import AppKit
-func send(_ code: Int32, down: Bool) {{
-    let d1 = Int((code << 16) | ((down ? 0xa : 0xb) << 8))
-    if let e = NSEvent.otherEvent(with: .systemDefined, location: .zero,
-        modifierFlags: down ? .function : [], timestamp: 0,
-        windowNumber: 0, context: nil, subtype: 8, data1: d1, data2: -1) {{
-        e.cgEvent?.post(tap: .cghidEventTap)
-    }}
-}}
-send({key_code}, down: true)
-send({key_code}, down: false)
-"""
     try:
-        subprocess.run(
-            ["swift", "-"],
-            input=swift, text=True,
-            capture_output=True, timeout=5
-        )
-    except Exception as e:
-        log.warning("swift media key failed: %s", e)
+        from AppKit import NSEvent
+        for flags, action in [(0x00800000, 0x0a), (0x00800100, 0x0b)]:
+            data1 = int((key_code << 16) | (action << 8))
+            e = NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
+                14,           # NSEventTypeSystemDefined
+                (0.0, 0.0),   # location
+                flags,        # modifierFlags (NSFunctionKeyMask for down; +0x100 for up)
+                0.0,          # timestamp
+                0,            # windowNumber
+                None,         # context
+                8,            # subtype: NX_SUBTYPE_AUX_CONTROL_BUTTONS
+                data1,        # data1
+                -1,           # data2
+            )
+            if e:
+                cg_event = e.CGEvent()
+                if cg_event:
+                    _cg.CGEventPost(_kCGSessionEventTap,
+                                    ctypes.c_void_p(cg_event.pointerAsInteger))
+    except Exception as exc:
+        log.warning("media key failed: %s", exc)
 
 
 # ------------------------------------------------------------------

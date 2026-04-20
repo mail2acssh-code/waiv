@@ -23,9 +23,25 @@ echo "==> Building Waiv ${VERSION}"
 # ── Step 1: venv check ────────────────────────────────────────────────────────
 if [ ! -f venv/bin/python ]; then
     echo "ERROR: venv not found."
-    echo "Run:   python3 -m venv venv && source venv/bin/activate"
-    echo "Then:  pip install -r requirements.txt py2app"
+    echo ""
+    echo "IMPORTANT: Use the official Python.org installer, NOT Homebrew Python."
+    echo "Homebrew Python on macOS 26 beta compiles with minos 26.0, making the"
+    echo "app incompatible with stable macOS releases."
+    echo ""
+    echo "  1. Download Python 3.11 from https://www.python.org/downloads/"
+    echo "  2. /Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11 -m venv venv"
+    echo "  3. source venv/bin/activate"
+    echo "  4. pip install -r requirements.txt py2app"
     exit 1
+fi
+
+# Warn if the venv Python has a macOS 26+ minimum target
+VENV_MINOS=$(otool -l venv/bin/python3* 2>/dev/null | grep minos | head -1 | awk '{print $2}' || echo "")
+if [[ "$VENV_MINOS" == 26* ]]; then
+    echo "WARNING: venv Python has minos ${VENV_MINOS} — app will only run on macOS 26+."
+    echo "         For a distributable build, recreate the venv with the python.org installer."
+    echo "         Continuing anyway..."
+    echo ""
 fi
 
 # ── Step 2: model file ────────────────────────────────────────────────────────
@@ -51,7 +67,35 @@ if [ ! -d "$APP_PATH" ]; then
 fi
 echo "    Built: $APP_PATH"
 
-# ── Step 5: package as DMG ────────────────────────────────────────────────────
+# ── Step 5: code sign ─────────────────────────────────────────────────────────
+# Try Developer ID signing first; fall back to ad-hoc so the signature is valid.
+SIGN_ID=""
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "Developer ID Application"; then
+    SIGN_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+    echo "==> Signing with Developer ID: $SIGN_ID"
+    codesign --force --deep --options runtime \
+        --entitlements entitlements.plist \
+        --sign "$SIGN_ID" \
+        "$APP_PATH"
+    echo "    NOTE: Submit for notarization with 'xcrun notarytool' before releasing."
+else
+    echo "==> No Developer ID found — applying ad-hoc signature."
+    echo "    Users will need to right-click → Open (or System Settings → Privacy & Security → Open Anyway)."
+    # Sign each dylib individually first; some have linker signatures that need --no-strict
+    find "$APP_PATH" \( -name "*.dylib" -o -name "*.so" \) | while read lib; do
+        codesign --force --sign - "$lib" 2>/dev/null || \
+        codesign --force --sign - --no-strict "$lib" 2>/dev/null || true
+    done
+    # Sign frameworks
+    find "$APP_PATH" -name "*.framework" | while read fw; do
+        codesign --force --deep --sign - "$fw" 2>/dev/null || true
+    done
+    # Sign the app bundle (allow partial success with --no-strict for linker-signed libs)
+    codesign --force --sign - --no-strict "$APP_PATH" 2>&1 || \
+        echo "    (Ad-hoc signing had warnings — app will still run locally)"
+fi
+
+# ── Step 6: package as DMG ────────────────────────────────────────────────────
 echo "==> Creating DMG..."
 
 STAGING="dist/_dmg_staging"

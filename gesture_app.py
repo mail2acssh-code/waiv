@@ -17,6 +17,15 @@ import sys
 import time
 import threading
 
+# ── Force the process into GUI/accessory mode BEFORE importing rumps ──────────
+# When launched via a LaunchAgent the process has no Info.plist and macOS
+# defaults it to NSApplicationActivationPolicyProhibited, which prevents the
+# status-bar item from appearing.  Setting the policy here, before rumps
+# touches NSApplication, ensures the item is always visible.
+from AppKit import NSApplication, NSApplicationActivationPolicyAccessory as _ACCESSORY
+_ns_app = NSApplication.sharedApplication()
+_ns_app.setActivationPolicy_(_ACCESSORY)
+
 import cv2
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
@@ -27,7 +36,7 @@ from PyObjCTools import AppHelper
 from gesture_classifier import GestureClassifier
 import media_controller
 import media_detector
-from hud import WaivHUD, OnboardingWindow, is_onboarded
+from hud import WaivHUD, SetupWizardWindow, OnboardingWindow, is_onboarded
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,6 +55,9 @@ MODEL_PATH    = os.path.join(_HERE, "hand_landmarker.task")
 _paused   = False
 _stop_evt = threading.Event()
 
+# Wizard hooks — set while the setup wizard is active so gestures route there
+_wizard: SetupWizardWindow | None = None
+
 _SPINNER = ["◐", "◓", "◑", "◒"]
 
 
@@ -59,36 +71,35 @@ class WaivStatusBar(rumps.App):
         self._pause_item = rumps.MenuItem("Pause Waiv", callback=self._toggle_pause)
         self.menu = [
             rumps.MenuItem("Show Gestures…", callback=self._show_gestures),
+            rumps.MenuItem("Show Setup…",    callback=self._show_setup),
             None,
             self._pause_item,
             None,
             rumps.MenuItem("Quit Waiv", callback=self._quit),
         ]
 
-        # Spin while camera/model is loading
         self._spinner_timer = rumps.Timer(self._spin, 0.18)
         self._spinner_timer.start()
-
-    # --- spinner ---
 
     def _spin(self, timer):
         self._spinner_idx = (self._spinner_idx + 1) % len(_SPINNER)
         self.title = _SPINNER[self._spinner_idx]
 
     def set_ready(self):
-        """Switch icon to ✋ when camera is open. Called from gesture loop."""
         self._spinner_timer.stop()
         self.title = "✋"
 
     def set_error(self):
-        """Switch icon to ⚠️ on init failure. Called from gesture loop."""
         self._spinner_timer.stop()
         self.title = "⚠️"
 
-    # --- menu callbacks ---
-
     def _show_gestures(self, sender):
         self._onboarding.show()
+
+    def _show_setup(self, sender):
+        from hud import SetupWizardWindow
+        win = SetupWizardWindow()
+        win.show()
 
     def _toggle_pause(self, sender):
         global _paused
@@ -111,16 +122,16 @@ class WaivStatusBar(rumps.App):
              os.path.expanduser("~/Library/LaunchAgents/com.waiv.gesture.plist")],
             capture_output=True,
         )
-        _stop_evt.set()                # signal gesture loop to release camera
-        time.sleep(0.4)                # give it a moment to call cap.release()
+        _stop_evt.set()
+        time.sleep(0.4)
         rumps.quit_application()
 
 
-# ---------------------------------------------------------------------------
-# Gesture loop (background thread)
-# ---------------------------------------------------------------------------
+# ── Gesture loop ──────────────────────────────────────────────────────────────
 
 def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
+    global _wizard
+
     if not os.path.exists(MODEL_PATH):
         log.error("Model not found: %s", MODEL_PATH)
         AppHelper.callAfter(app.set_error)
@@ -140,12 +151,14 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
     if not cap.isOpened():
         log.error("Cannot open camera %d — permission denied or in use.", CAMERA_INDEX)
         AppHelper.callAfter(app.set_error)
+        if _wizard:
+            _wizard.camera_error()
         try:
             import subprocess
             subprocess.run([
                 "osascript", "-e",
                 'display notification "Go to System Settings > Privacy > Camera '
-                'and enable Python." with title "Waiv" subtitle "Camera permission needed"'
+                'and enable Waiv." with title "Waiv" subtitle "Camera permission needed"'
             ], timeout=3)
         except Exception:
             pass
@@ -153,7 +166,12 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
         return
 
     log.info("Camera ready. Watching for gestures…")
-    AppHelper.callAfter(app.set_ready)                    # ← spinner → ✋
+    AppHelper.callAfter(app.set_ready)
+
+    # Notify wizard that camera is confirmed open
+    if _wizard:
+        _wizard.camera_ready()
+
     threading.Thread(target=media_controller.warmup, daemon=True).start()
 
     classifier     = GestureClassifier()
@@ -183,16 +201,20 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
         result   = detector.detect(mp_image)
 
         landmarks = result.hand_landmarks[0] if result.hand_landmarks else None
+        gesture   = classifier.update(landmarks)
 
-        gesture = classifier.update(landmarks)
         if gesture:
             log.info("Gesture: %s", gesture)
-            hud.show(gesture)
-            threading.Thread(
-                target=media_controller.execute,
-                args=(gesture,),
-                daemon=True,
-            ).start()
+            if _wizard:
+                # During setup: route to wizard only
+                _wizard.on_gesture(gesture)
+            else:
+                hud.show(gesture)
+                threading.Thread(
+                    target=media_controller.execute,
+                    args=(gesture,),
+                    daemon=True,
+                ).start()
 
         elapsed   = time.monotonic() - loop_start
         sleep_for = frame_interval - elapsed
@@ -204,11 +226,11 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
     detector.close()
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
+# ── Entry point ───────────────────────────────────────────────────────────────
 
 def run():
+    global _wizard
+
     try:
         import setproctitle
         setproctitle.setproctitle("waiv")
@@ -228,9 +250,15 @@ def run():
         name="gesture-loop",
     ).start()
 
-    # First-run: show gesture guide automatically after app settles
     if not is_onboarded():
-        AppHelper.callLater(1.0, onboarding.show)
+        wizard = SetupWizardWindow()
+        _wizard = wizard
+
+        def _wizard_done():
+            global _wizard
+            _wizard = None
+
+        AppHelper.callLater(0.8, lambda: wizard.show(on_complete=_wizard_done))
 
     app.run()
 

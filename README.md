@@ -31,8 +31,10 @@ Works with Spotify, Apple Music, YouTube, Netflix, and any app with a system med
 
 1. [Download Waiv.dmg](https://github.com/mail2acssh-code/waiv/releases/latest/download/Waiv.dmg)
 2. Open the DMG → drag **Waiv** to Applications
-3. Launch Waiv — it installs itself as a login item and asks for camera permission
-4. Grant camera access in **System Settings → Privacy & Security → Camera**
+3. **First launch — bypass Gatekeeper:** right-click **Waiv.app** → **Open** → click **Open** in the dialog.
+   *(macOS blocks unsigned apps by default. You only need to do this once.)*
+   - Alternatively: **System Settings → Privacy & Security** → scroll down → **Open Anyway**
+4. Grant camera access when prompted (**System Settings → Privacy & Security → Camera**)
 
 The ✋ icon appears in your menu bar when Waiv is running.
 
