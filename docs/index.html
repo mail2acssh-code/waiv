@@ -142,6 +142,7 @@
       border-radius: 16px;
       border: 1px solid var(--border);
       box-shadow: 0 24px 80px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+      width: 100%;
       max-width: 320px;
       margin-left: auto;
       background: var(--cam-bg);
@@ -177,10 +178,11 @@
       94% { opacity: 0.2; }
     }
     canvas#handCanvas {
-      display: block; width: 100%; height: 100%;
+      position: absolute; inset: 0;
+      pointer-events: none; z-index: 2;
     }
     canvas#ringCanvas {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      position: absolute; inset: 0;
       pointer-events: none; z-index: 5;
     }
     /* HUD pill: outside cam-inner overflow so it can slide up freely */
@@ -759,33 +761,38 @@ const ringCanvas = document.getElementById('ringCanvas');
 const hCtx = handCanvas.getContext('2d');
 const rCtx = ringCanvas.getContext('2d');
 
+const CHROME = 36;
+
 function resize() {
-  const r = camInner.getBoundingClientRect();
-  const chrome = 36;
-  handCanvas.width  = r.width;
-  handCanvas.height = r.height - chrome;
-  handCanvas.style.marginTop = chrome + 'px';
-  ringCanvas.width  = r.width;
-  ringCanvas.height = r.height;
+  const w = camInner.offsetWidth;
+  const h = camInner.offsetHeight;
+  if (!w || !h) return;
+  if (handCanvas.width === w && handCanvas.height === h) return;
+  handCanvas.width  = w;
+  handCanvas.height = h;
+  ringCanvas.width  = w;
+  ringCanvas.height = h;
 }
-resize();
-window.addEventListener('resize', () => { resize(); drawHand(currentPose, 1); });
+
+requestAnimationFrame(() => { resize(); drawHand(currentPose, 1); });
+new ResizeObserver(() => { resize(); drawHand(currentPose, 1); }).observe(camInner);
 
 /* ── DRAWING (white/grey palette) ── */
 function lmToCanvas(lm, canvas) {
-  return lm.map(([x, y]) => [x * canvas.width, y * canvas.height]);
+  const drawH = canvas.height - CHROME;
+  return lm.map(([x, y]) => [x * canvas.width, CHROME + y * drawH]);
 }
 
 function _drawPose(pose, alpha, ctx, canvas) {
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = `rgba(8,8,8,${alpha})`;
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(0, CHROME, w, h - CHROME);
 
   const pts = lmToCanvas(pose.lm, canvas);
 
   // connections
-  ctx.strokeStyle = `rgba(255,255,255,${0.15 * alpha})`;
+  ctx.strokeStyle = `rgba(255,255,255,${0.35 * alpha})`;
   ctx.lineWidth = 1.5; ctx.lineCap = 'round';
   for (const [a, b] of CONNECTIONS) {
     ctx.beginPath();
@@ -835,10 +842,10 @@ function drawRing(progress, poseName) {
   rCtx.clearRect(0, 0, w, h);
   if (progress <= 0) return;
 
-  const chrome = 36;
   const pose = POSES[poseName];
-  const wx = pose.lm[0][0] * handCanvas.width;
-  const wy = pose.lm[0][1] * handCanvas.height + chrome;
+  const drawH = ringCanvas.height - CHROME;
+  const wx = pose.lm[0][0] * ringCanvas.width;
+  const wy = CHROME + pose.lm[0][1] * drawH;
   const R = 18;
 
   rCtx.beginPath();
@@ -934,6 +941,8 @@ function startHold(poseName) {
 let lastTime = 0;
 function render(ts) {
   requestAnimationFrame(render);
+  resize(); // self-heal if container changed
+  if (handCanvas.width === 0 || handCanvas.height === 0) return;
   const dt = (ts - lastTime) / 1000;
   lastTime = ts;
   if (morphing) {
