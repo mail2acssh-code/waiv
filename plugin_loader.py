@@ -26,11 +26,23 @@ app is not running.
 import importlib
 import logging
 import os
+import sys
 import pkgutil
 
 log = logging.getLogger(__name__)
 
-_PLUGINS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plugins")
+if getattr(sys, "frozen", False):
+    # py2app bundle: compiled modules live in Contents/Resources/lib/pythonX.Y/
+    # but DATA_FILES (including plugins/) land in Contents/Resources/
+    _RESOURCES = os.path.normpath(
+        os.path.join(os.path.dirname(sys.executable), "..", "Resources")
+    )
+    _PLUGINS_DIR = os.path.join(_RESOURCES, "plugins")
+    # Ensure Resources is on sys.path so `import plugins.media_player` resolves
+    if _RESOURCES not in sys.path:
+        sys.path.insert(0, _RESOURCES)
+else:
+    _PLUGINS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plugins")
 _loaded: list = []   # imported plugin modules, populated once on first call
 
 

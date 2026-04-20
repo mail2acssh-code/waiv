@@ -11,7 +11,7 @@ import glob
 from setuptools import setup
 
 APP     = ["launcher.py"]
-VERSION = "1.0.4"
+VERSION = "1.0.7"
 
 DATA_FILES = [
     ("", [

@@ -19,18 +19,31 @@ import logging
 log = logging.getLogger(__name__)
 
 
-_NOTIFIER = "/opt/homebrew/bin/terminal-notifier"
-
 def _notify(title: str, message: str = ""):
-    """Post a macOS notification via terminal-notifier (best-effort)."""
+    """Post a macOS notification.
+    Bundle context → NSUserNotification (shows app icon).
+    Script context → osascript fallback.
+    """
+    import sys
+    if getattr(sys, "frozen", False):
+        try:
+            from AppKit import NSUserNotification, NSUserNotificationCenter
+            n = NSUserNotification.alloc().init()
+            n.setTitle_("Waiv")
+            n.setSubtitle_(title)
+            n.setInformativeText_(message or " ")
+            n.setSoundName_("NSUserNotificationDefaultSoundName")
+            NSUserNotificationCenter.defaultUserNotificationCenter().deliverNotification_(n)
+            return
+        except Exception:
+            pass
     try:
+        msg = (message or "").replace('"', "'")
+        ttl = title.replace('"', "'")
         subprocess.run(
-            [_NOTIFIER,
-             "-title",   "Waiv",
-             "-subtitle", title,
-             "-message",  message or " ",
-             "-sound",    "Glass"],
-            capture_output=True, timeout=3
+            ["osascript", "-e",
+             f'display notification "{msg}" with title "Waiv" subtitle "{ttl}"'],
+            capture_output=True, timeout=3,
         )
     except Exception:
         pass

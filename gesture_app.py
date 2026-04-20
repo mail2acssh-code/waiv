@@ -12,6 +12,7 @@ Menu: Show Gestures… | Pause/Resume | Quit
 
 import logging
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -27,6 +28,8 @@ from AppKit import NSApplication, NSApplicationActivationPolicyAccessory as _ACC
 _ns_app = NSApplication.sharedApplication()
 _ns_app.setActivationPolicy_(_ACCESSORY)
 
+import os
+os.environ.setdefault("OPENCV_AVFOUNDATION_SKIP_AUTH", "1")
 import cv2
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
@@ -53,9 +56,11 @@ ALWAYS_ACTIVE = "--always-active" in sys.argv
 _HERE         = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH    = os.path.join(_HERE, "hand_landmarker.task")
 
-_paused   = False
-_stop_evt = threading.Event()
-_camera_ok = False   # True once camera successfully opens; read by health-check wizard
+_paused            = False
+_stop_evt          = threading.Event()
+_camera_permitted  = threading.Event()  # set when camera permission granted in wizard
+_setup_done        = threading.Event()  # set when wizard fully completes (or immediately if onboarded)
+_camera_ok         = False              # True once camera successfully opens
 
 # Wizard hooks — set while the setup wizard is active so gestures route there
 _wizard: SetupWizardWindow | None = None
@@ -76,6 +81,8 @@ class WaivStatusBar(rumps.App):
             rumps.MenuItem("Show Setup…",    callback=self._show_setup),
             None,
             self._pause_item,
+            None,
+            rumps.MenuItem("Uninstall Waiv", callback=self._uninstall),
             None,
             rumps.MenuItem("Quit Waiv", callback=self._quit),
         ]
@@ -121,6 +128,45 @@ class WaivStatusBar(rumps.App):
             self.title   = "✋"
             media_controller._notify("Waiv Resumed", "Gesture detection on.")
 
+    def _uninstall(self, sender):
+        from AppKit import NSAlert
+        alert = NSAlert.alloc().init()
+        alert.setMessageText_("Uninstall Waiv?")
+        alert.setInformativeText_(
+            "This will stop the background agent and remove all Waiv data. "
+            "Drag Waiv.app to Trash afterward to complete removal."
+        )
+        alert.addButtonWithTitle_("Uninstall")
+        alert.addButtonWithTitle_("Cancel")
+        if alert.runModal() != 1000:
+            return
+
+        plist_path = os.path.expanduser("~/Library/LaunchAgents/com.waiv.gesture.plist")
+        subprocess.run(["launchctl", "unload", plist_path], capture_output=True)
+        time.sleep(0.3)
+        try:
+            os.remove(plist_path)
+        except FileNotFoundError:
+            pass
+
+        config_dir = os.path.expanduser("~/.config/waiv")
+        if os.path.exists(config_dir):
+            shutil.rmtree(config_dir)
+        for f in ["/tmp/waiv.log", "/tmp/waiv-error.log"]:
+            try:
+                os.remove(f)
+            except FileNotFoundError:
+                pass
+
+        subprocess.run(["tccutil", "reset", "Camera", "com.waiv.gesture"],
+                       capture_output=True)
+
+        media_controller._notify("Waiv Removed",
+                                 "Drag Waiv.app to Trash to finish removal.")
+        _stop_evt.set()
+        time.sleep(0.4)
+        rumps.quit_application()
+
     def _quit(self, sender):
         log.info("Quit requested from menu.")
         media_controller._notify("Waiv Stopping", "Goodbye.")
@@ -154,6 +200,13 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
     )
     detector = mp_vision.HandLandmarker.create_from_options(options)
 
+    # ── Wait for camera permission granted in wizard ──────────────────────
+    log.info("Waiting for camera permission…")
+    _camera_permitted.wait()
+    if _stop_evt.is_set():
+        return
+    time.sleep(1.0)   # brief pause after wizard releases camera
+
     # ── Camera open with retry ─────────────────────────────────────────────
     cap = None
     while not _stop_evt.is_set():
@@ -162,20 +215,11 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
             break
         cap.release()
         cap = None
-        log.warning("Camera unavailable — retrying in 30 s")
+        log.warning("Camera unavailable — retrying in 2 s")
         AppHelper.callAfter(app.set_error)
         if _wizard:
             _wizard.camera_error()
-        try:
-            subprocess.run(
-                ["osascript", "-e",
-                 'display notification "Open System Settings → Privacy → Camera and allow Waiv."'
-                 ' with title "Waiv" subtitle "Camera permission needed"'],
-                timeout=3,
-            )
-        except Exception:
-            pass
-        _stop_evt.wait(30)
+        _stop_evt.wait(2)
 
     if cap is None or _stop_evt.is_set():
         return
@@ -207,7 +251,7 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
             time.sleep(0.5)
             continue
 
-        if not ALWAYS_ACTIVE and not media_detector.is_playing():
+        if not ALWAYS_ACTIVE and not _wizard and not media_detector.is_playing():
             log.debug("No media playing — idling")
             time.sleep(IDLE_SLEEP)
             continue
@@ -268,6 +312,11 @@ def _gesture_loop(app: WaivStatusBar, hud: WaivHUD):
 def run():
     global _wizard
 
+    # When launched as __main__ (script or runpy), ensure 'import gesture_app'
+    # returns this module so hud.py callbacks access the real running globals.
+    import sys as _sys
+    _sys.modules['gesture_app'] = _sys.modules['__main__']
+
     try:
         import setproctitle
         setproctitle.setproctitle("waiv")
@@ -294,8 +343,12 @@ def run():
         def _wizard_done():
             global _wizard
             _wizard = None
+            _setup_done.set()   # camera loop may now open the camera
 
         AppHelper.callLater(0.8, lambda: wizard.show(on_complete=_wizard_done))
+    else:
+        _camera_permitted.set()  # already onboarded — start camera immediately
+        _setup_done.set()
 
     app.run()
 

@@ -131,21 +131,14 @@ def main():
         return
 
     # Not loaded — fresh install or user reinstalling after deletion
-    notify("Starting Waiv…", "Grant camera access when prompted.")
-    camera_ok = request_camera_permission()
-    if not camera_ok:
-        notify("Camera permission needed",
-               "Open System Settings → Privacy & Security → Camera and allow Waiv.")
-
+    notify("Starting Waiv…", "The setup wizard will guide you through permissions.")
     install_agent()
     time.sleep(2)
 
     if is_agent_loaded():
-        notify("Waiv is running",
-               "Show your hand ✋ to the camera to control media.")
+        notify("Waiv is starting…", "Complete the setup wizard to finish installation.")
     else:
-        notify("Setup issue",
-               "Open System Settings → Privacy & Security → Camera and allow Waiv, then relaunch.")
+        notify("Setup issue", "Relaunch Waiv.app to try again.")
 
 
 if __name__ == "__main__":

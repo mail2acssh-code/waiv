@@ -44,6 +44,7 @@ from AppKit import (
 from PyObjCTools import AppHelper
 
 _SENTINEL = os.path.expanduser("~/.config/waiv/.onboarded")
+_cam_tcc_meta_registered = False
 
 
 def is_onboarded() -> bool:
@@ -73,6 +74,15 @@ def open_accessibility_settings():
         ["open",
          "x-apple.systempreferences:com.apple.preference.security"
          "?Privacy_Accessibility"],
+        capture_output=True,
+    )
+
+
+def open_camera_settings():
+    subprocess.run(
+        ["open",
+         "x-apple.systempreferences:com.apple.preference.security"
+         "?Privacy_Camera"],
         capture_output=True,
     )
 
@@ -142,6 +152,21 @@ def _label(parent, text, frame, size=14, bold=False, color=None, align=NSTextAli
     if parent is not None:
         parent.addSubview_(f)
     return f
+
+
+# ── Window close delegate ─────────────────────────────────────────────────────
+
+class _WindowDelegate(NSObject):
+    def init(self):
+        self = objc.super(_WindowDelegate, self).init()
+        if self is None:
+            return None
+        self._cb = None
+        return self
+
+    def windowWillClose_(self, notification):
+        if self._cb:
+            self._cb()
 
 
 # ── NSObject action target ────────────────────────────────────────────────────
@@ -273,19 +298,19 @@ class WaivHUD:
 _WIZARD_STEPS = [
     ("hand.point.up.left.fill",
      "Accessibility",
-     "Checking…",
-     "Click 'Open Settings', add Waiv, then return here.",
+     "Waiting…",
+     "Click 'Open Accessibility Settings', add Waiv, then return here.",
      "Accessibility granted"),
     ("camera.fill",
      "Camera Access",
      "Waiting…",
-     "Opening camera…",
-     "Camera ready"),
+     "Allow camera access when prompted by macOS.",
+     "Camera access confirmed"),
     ("hand.raised.fill",
-     "Gesture Detection",
+     "Gesture Test",
      "Waiting…",
-     "Raise an open palm toward the camera",
-     "Gesture detected!"),
+     "Show thumbs up toward the camera to confirm.",
+     "Gesture detected — volume up!"),
     ("checkmark.seal.fill",
      "All Set",
      "",
@@ -293,7 +318,7 @@ _WIZARD_STEPS = [
      "Waiv is ready — enjoy!"),
 ]
 
-# Step indices (named for readability)
+# Step indices
 _STEP_ACCESSIBILITY = 0
 _STEP_CAMERA        = 1
 _STEP_GESTURE       = 2
@@ -329,10 +354,16 @@ class SetupWizardWindow:
         self._btn_target        = None
         self._settings_target   = None
         self._current           = -1
-        self._palm_armed        = False
         self._on_complete       = None
         self._camera_ready      = False
+        self._camera_granted    = False   # set once camera TCC confirmed in wizard
+        self._palm_armed        = False
         self._ax_timer          = None   # rumps.Timer polling accessibility
+        self._cam_timer         = None
+        self._cam_timer_ticks   = 0
+        self._back_btn          = None
+        self._back_target       = None
+        self._win_delegate      = None
 
     # ── public / thread-safe ──────────────────────────────────────────────────
 
@@ -369,7 +400,7 @@ class SetupWizardWindow:
             self._set_row_state(_STEP_ACCESSIBILITY, _ACTIVE)
             self._settings_btn.setHidden_(False)
 
-        # Step 1 — Camera (infer from gesture_app state)
+        # Step 1 — Camera
         try:
             import gesture_app as _ga
             cam_ok = _ga._camera_ok
@@ -379,8 +410,11 @@ class SetupWizardWindow:
             self._set_row_state(_STEP_CAMERA, _DONE)
         else:
             self._set_row_state(_STEP_CAMERA, _ACTIVE)
+            self._settings_btn.setTitle_("Open Camera Settings…")
+            self._settings_target._cb = self._open_camera_settings
+            self._settings_btn.setHidden_(False)
 
-        # Step 2 — Gesture detection (if camera ok and loop running, it works)
+        # Step 2 — Gesture (mark done if camera running)
         if cam_ok:
             self._set_row_state(_STEP_GESTURE, _DONE)
         else:
@@ -390,13 +424,12 @@ class SetupWizardWindow:
         ax_ok = is_accessibility_trusted()
         if ax_ok and cam_ok:
             self._set_row_state(_STEP_DONE, _DONE)
-            sym = _WIZARD_STEPS[_STEP_DONE][0]
-            self._big_icon.setImage_(_sf_symbol(sym, 64, NSColor.systemGreenColor()))
+            self._big_icon.setImage_(_sf_symbol(
+                _WIZARD_STEPS[_STEP_DONE][0], 64, NSColor.systemGreenColor()))
             self._instruction.setStringValue_("All permissions are in place.")
         else:
-            sym = _WIZARD_STEPS[_STEP_DONE][0]
-            self._big_icon.setImage_(_sf_symbol("exclamationmark.triangle.fill", 64,
-                                                NSColor.systemOrangeColor()))
+            self._big_icon.setImage_(_sf_symbol(
+                "exclamationmark.triangle.fill", 64, NSColor.systemOrangeColor()))
             issues = []
             if not ax_ok:
                 issues.append("Accessibility not granted")
@@ -410,17 +443,47 @@ class SetupWizardWindow:
     def camera_ready(self):
         """Called from gesture thread when camera opens."""
         self._camera_ready = True
-        AppHelper.callAfter(self._complete_step, _STEP_CAMERA)
+        if self._current == _STEP_CAMERA:
+            AppHelper.callAfter(self._complete_step, _STEP_CAMERA)
+        elif self._current == _STEP_GESTURE and self._settings_btn.isHidden():
+            # Only arm if user already pressed Start Camera
+            AppHelper.callAfter(self._arm_gesture_detection)
 
     def camera_error(self):
         """Called from gesture thread if camera fails."""
         AppHelper.callAfter(self._mark_camera_error)
 
     def on_gesture(self, gesture: str):
-        """Called from gesture thread with each detected gesture."""
-        if self._palm_armed and gesture == "open_palm":
+        if self._palm_armed and gesture == "thumbs_up":
             self._palm_armed = False
+            import threading as _t
+            import media_controller as _mc
+            _t.Thread(target=_mc.volume_up, daemon=True).start()
             AppHelper.callAfter(self._complete_step, _STEP_GESTURE)
+
+    def _on_start_camera_pressed(self):
+        self._settings_btn.setHidden_(True)
+        self._instruction.setStringValue_("Camera starting…")
+        self._trigger_system_events_permission()
+        try:
+            import gesture_app as _ga
+            _ga._camera_permitted.set()   # ensure gesture loop unblocks (fallback)
+        except Exception:
+            pass
+        if self._camera_ready:
+            self._arm_gesture_detection()
+
+    def _arm_gesture_detection(self):
+        """Enable thumbs-up detection and update instruction. Main thread only."""
+        if self._current != _STEP_GESTURE:
+            return
+        self._palm_armed = True
+        gray2 = NSColor.colorWithRed_green_blue_alpha_(0.6, 0.6, 0.6, 1.0)
+        self._instruction.setTextColor_(gray2)
+        self._instruction.setStringValue_(
+            "Show thumbs up toward the camera.\n"
+            "This also grants media control permission."
+        )
 
     # ── main-thread internals ─────────────────────────────────────────────────
 
@@ -438,6 +501,7 @@ class SetupWizardWindow:
         if idx >= len(_WIZARD_STEPS):
             return
         self._current = idx
+        self._stop_cam_timer()
         sym, _, _, active_detail, _ = _WIZARD_STEPS[idx]
 
         for i in range(len(_WIZARD_STEPS)):
@@ -454,11 +518,13 @@ class SetupWizardWindow:
         self._instruction.setTextColor_(gray2)
         self._instruction.setStringValue_(active_detail)
 
-        # Hide both action buttons by default; show as needed
         self._done_btn.setHidden_(True)
         self._settings_btn.setHidden_(True)
+        self._back_btn.setHidden_(idx not in (_STEP_CAMERA,))
 
         if idx == _STEP_ACCESSIBILITY:
+            self._settings_btn.setTitle_("Open Accessibility Settings…")
+            self._settings_target._cb = self._open_settings
             if is_accessibility_trusted():
                 AppHelper.callLater(0.4, lambda: self._complete_step(_STEP_ACCESSIBILITY))
             else:
@@ -467,11 +533,15 @@ class SetupWizardWindow:
 
         elif idx == _STEP_CAMERA:
             self._stop_ax_poll()
-            if self._camera_ready:
-                AppHelper.callLater(0.4, lambda: self._complete_step(_STEP_CAMERA))
+            self._settings_btn.setTitle_("Open Camera Settings…")
+            self._settings_target._cb = self._open_camera_settings
+            self._settings_btn.setHidden_(False)
+            self._start_cam_permission_request()
 
         elif idx == _STEP_GESTURE:
-            self._palm_armed = True
+            self._settings_btn.setTitle_("Start Camera")
+            self._settings_target._cb = self._on_start_camera_pressed
+            self._settings_btn.setHidden_(False)
 
         elif idx == _STEP_DONE:
             self._set_row_state(_STEP_DONE, _DONE)
@@ -501,10 +571,10 @@ class SetupWizardWindow:
     def _mark_camera_error(self):
         if self._current != _STEP_CAMERA:
             return
+        self._stop_cam_timer()
         self._instruction.setStringValue_(
-            "Camera permission denied.\n"
-            "Open System Settings → Privacy & Security → Camera\n"
-            "and allow Waiv, then relaunch."
+            "Camera access denied.\n"
+            "Open Camera Settings, allow Waiv, then return here."
         )
         self._big_icon.setImage_(_sf_symbol("exclamationmark.triangle.fill", 72,
                                             NSColor.systemOrangeColor()))
@@ -555,8 +625,146 @@ class SetupWizardWindow:
             self._stop_ax_poll()
             AppHelper.callAfter(self._complete_step, _STEP_ACCESSIBILITY)
 
+    def _start_cam_permission_request(self):
+        """Trigger camera TCC dialog from main thread via AVCaptureDevice."""
+        AppHelper.callAfter(self._request_cam_tcc_main)
+
+    def _request_cam_tcc_main(self):
+        """Main thread. Use AVCaptureDevice to check/request camera TCC."""
+        global _cam_tcc_meta_registered
+        try:
+            import ctypes as _ct
+            _ct.CDLL('/System/Library/Frameworks/AVFoundation.framework/AVFoundation')
+            import objc as _objc
+
+            if not _cam_tcc_meta_registered:
+                _objc.registerMetaDataForSelector(
+                    b"AVCaptureDevice",
+                    b"requestAccessForMediaType:completionHandler:",
+                    {
+                        "arguments": {
+                            3: {
+                                "callable": {
+                                    "retval": {"type": b"v"},
+                                    "arguments": {
+                                        0: {"type": b"@"},
+                                        1: {"type": b"c"},
+                                    },
+                                }
+                            }
+                        }
+                    },
+                )
+                _cam_tcc_meta_registered = True
+
+            AVCapDev = _objc.lookUpClass('AVCaptureDevice')
+            status = int(AVCapDev.authorizationStatusForMediaType_("vide"))
+
+            if status == 3:
+                self._on_camera_access_confirmed()
+                return
+            if status == 2:
+                self._instruction.setStringValue_(
+                    "Camera access denied.\n"
+                    "Open Camera Settings to allow Waiv, then return here."
+                )
+                self._start_cam_cv2_poll()
+                return
+            # 0=notDetermined: show system dialog
+            def _handler(granted):
+                if granted:
+                    AppHelper.callAfter(self._on_camera_access_confirmed)
+                else:
+                    AppHelper.callAfter(lambda: self._instruction.setStringValue_(
+                        "Camera access denied.\n"
+                        "Open Camera Settings to allow Waiv."
+                    ))
+            AVCapDev.requestAccessForMediaType_completionHandler_("vide", _handler)
+        except Exception as exc:
+            import logging
+            logging.getLogger('hud').warning("Camera TCC ObjC: %s", exc)
+            self._start_cam_cv2_poll()
+
+    def _start_cam_cv2_poll(self):
+        """Fallback: poll cv2 to detect when camera TCC is granted via System Settings."""
+        import threading as _t
+        self._camera_granted = False
+
+        def _poll():
+            import time
+            while not self._camera_granted and self._current == _STEP_CAMERA:
+                try:
+                    import cv2
+                    cap = cv2.VideoCapture(0)
+                    if cap.isOpened():
+                        cap.release()
+                        AppHelper.callAfter(self._on_camera_access_confirmed)
+                        return
+                    cap.release()
+                except Exception:
+                    pass
+                time.sleep(2.0)
+
+        _t.Thread(target=_poll, daemon=True, name="cam-permit").start()
+
+    def _on_camera_access_confirmed(self):
+        if self._camera_granted or self._current != _STEP_CAMERA:
+            return
+        self._camera_granted = True
+        try:
+            import gesture_app as _ga
+            _ga._camera_permitted.set()
+        except Exception:
+            pass
+        self._complete_step(_STEP_CAMERA)
+
+    def _stop_cam_timer(self):
+        pass  # kept for backward compat (camera_ready path)
+
+    def _open_camera_settings(self):
+        open_camera_settings()
+        # polling thread continues automatically
+
+    def _trigger_system_events_permission(self):
+        """Pre-trigger Automation permission for System Events so it doesn't appear mid-use."""
+        import threading as _threading
+        def _run():
+            try:
+                import subprocess as _sp
+                _sp.run(
+                    ["osascript", "-e",
+                     'tell application "System Events" to return true'],
+                    capture_output=True, timeout=10,
+                )
+            except Exception:
+                pass
+        _threading.Thread(target=_run, daemon=True, name="sysevt-perm").start()
+
+    def _go_back(self):
+        self._stop_cam_timer()
+        self._stop_ax_poll()
+        self._palm_armed = False
+        if self._current > 0:
+            self._go_to_step(self._current - 1)
+
     def _open_settings(self):
         open_accessibility_settings()
+
+    def _on_window_closed(self):
+        """User dismissed wizard via X — unblock the gesture loop so app runs."""
+        self._stop_ax_poll()
+        self._stop_cam_timer()
+        self._palm_armed = False
+        self._camera_granted = True   # stop background poll thread
+        try:
+            import gesture_app as _ga
+            _ga._camera_permitted.set()
+            _ga._setup_done.set()
+        except Exception:
+            pass
+        mark_onboarded()
+        if self._on_complete:
+            self._on_complete()
 
     def _finish(self):
         mark_onboarded()
@@ -578,6 +786,10 @@ class SetupWizardWindow:
         )
         win.setTitle_("Setting up Waiv")
         win.setLevel_(NSFloatingWindowLevel + 1)
+        delegate = _WindowDelegate.alloc().init()
+        delegate._cb = self._on_window_closed
+        self._win_delegate = delegate
+        win.setDelegate_(delegate)
         win.setTitlebarAppearsTransparent_(True)
         win.setAppearance_(NSAppearance.appearanceNamed_("NSAppearanceNameDarkAqua"))
         # Flat opaque dark surface (matches landing page #0d0d0d)
@@ -672,8 +884,22 @@ class SetupWizardWindow:
         # ── Button bar ────────────────────────────────────────────────────────
         _div(bg, 0, 60, W)
 
-        # "Open Settings…" — bordered outline style (secondary)
-        sbtn = NSButton.alloc().initWithFrame_(NSMakeRect(W // 2 - 82, 16, 164, 32))
+        # Back button — left side, hidden on first/last step
+        back_btn = NSButton.alloc().initWithFrame_(NSMakeRect(20, 16, 80, 32))
+        back_btn.setTitle_("← Back")
+        back_btn.setBezelStyle_(NSBezelStyleRounded)
+        back_btn.setHidden_(True)
+
+        back_target = _ButtonTarget.alloc().init()
+        back_target._cb = self._go_back
+        self._back_target = back_target
+        back_btn.setTarget_(back_target)
+        back_btn.setAction_("doAction:")
+        bg.addSubview_(back_btn)
+        self._back_btn = back_btn
+
+        # "Open Camera Settings…" and "Continue →" — side by side for camera step
+        sbtn = NSButton.alloc().initWithFrame_(NSMakeRect(W // 2 - 170, 16, 160, 32))
         sbtn.setTitle_("Open Settings…")
         sbtn.setBezelStyle_(NSBezelStyleRounded)
         sbtn.setHidden_(True)
@@ -686,7 +912,7 @@ class SetupWizardWindow:
         bg.addSubview_(sbtn)
         self._settings_btn = sbtn
 
-        # "Start Using Waiv" — primary white-fill style
+        # "Start Using Waiv" — primary, shown on done step
         btn = NSButton.alloc().initWithFrame_(NSMakeRect(W // 2 - 82, 16, 164, 32))
         btn.setTitle_("Start Using Waiv")
         btn.setBezelStyle_(NSBezelStyleRounded)

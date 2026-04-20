@@ -106,18 +106,22 @@ mkdir "$STAGING"
 cp -r "$APP_PATH" "$STAGING/"
 ln -s /Applications "$STAGING/Applications"
 
-# Add a helper script so quarantined users can double-click to bypass Gatekeeper
-cat > "$STAGING/Open Waiv.command" << 'CMDEOF'
-#!/bin/bash
-APP="/Applications/Waiv.app"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DMG_APP="$SCRIPT_DIR/Waiv.app"
-TARGET="$APP"
-[ ! -d "$APP" ] && TARGET="$DMG_APP"
-xattr -cr "$TARGET" 2>/dev/null
-open "$TARGET"
-CMDEOF
-chmod +x "$STAGING/Open Waiv.command"
+cat > "$STAGING/README.txt" << 'READMEEOF'
+Waiv — Installation
+====================
+
+1. Drag Waiv.app into the Applications folder.
+
+2. Open Terminal (Applications → Utilities → Terminal) and run:
+
+      xattr -cr /Applications/Waiv.app
+
+3. Open Waiv.app — the setup wizard will guide you through
+   Camera and Accessibility permissions.
+
+Waiv lives in your menu bar (✋) once set up.
+Use the menu bar icon → "Uninstall Waiv" to remove it cleanly.
+READMEEOF
 
 hdiutil create \
     -volname "Waiv" \
